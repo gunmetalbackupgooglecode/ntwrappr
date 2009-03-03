@@ -25,4 +25,3 @@ EXPORTS
 	strdup
 	str_replace_char
 	stri_replace_char
-	
