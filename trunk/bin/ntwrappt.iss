@@ -22,6 +22,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
 Source: "D:\Progs\ntsystem\bin\native.exe"; DestDir: "{win}\System32"; Flags: ignoreversion
+Source: "D:\Progs\ntsystem\bin\ntwrappr.dll"; DestDir: "{win}\System32"; Flags: ignoreversion
 Source: "D:\Progs\ntsystem\bin\ntshell.exe"; DestDir: "{win}\System32"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
