@@ -1,0 +1,28 @@
+EXPORTS
+	Print
+	ExceptionFilter
+	OpenFile
+	CreateFile
+	ReadFile
+	WriteFile
+	QueryDirectory
+	CloseHandle
+	halloc
+	hfree
+	InitializeWrapper
+	GetSystemInformation
+	OpenKeyboard
+	ReadChar
+	ReadString
+	GetDefaultKeyboard
+	ProcessFirst
+	ProcessNext
+	CreateDirectory
+	CreateSymbolicLink
+	CreateProcess
+	CommandLineToArgv
+	CommandLineToArgvW
+	strdup
+	str_replace_char
+	stri_replace_char
+	
