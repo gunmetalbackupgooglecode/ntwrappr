@@ -1,4 +1,16 @@
+#include "ntwrappr.h"
+
 #define toupper(x) (((x) >= 'a' && (x) <= 'z') ? ((x) + 'A' - 'a') : (x))
+
+char *strdup (char* s)
+{
+	char *dst = (char*)halloc (strlen(s)+1);
+	if (dst)
+	{
+		strcpy (dst, s);
+	}
+	return dst;
+}
 
 int str_replace_char (char *string, char ch1, char ch2)
 {

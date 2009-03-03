@@ -26,12 +26,13 @@ ExceptionFilter(
 
 HANDLE
 NTAPI
-OpenFile (
+CreateFile (
 	PWSTR FileName, 
 	ULONG AccessMode, 
 	ULONG ShareMode, 
 	ULONG Disposition, 
-	ULONG Options
+	ULONG Options,
+	ULONG Attributes
 	);
 
 ULONG 
@@ -40,6 +41,15 @@ ReadFile (
 	HANDLE hFile, 
 	PVOID Buffer, 
 	ULONG MaxLen, 
+	ULONG Position
+	);
+
+ULONG 
+NTAPI
+WriteFile (
+	HANDLE hFile, 
+	PVOID Buffer, 
+	ULONG Length, 
 	ULONG Position
 	);
 
@@ -123,6 +133,15 @@ Print (
 	...
 	);
 
+ULONG
+_cdecl
+PrintXY (
+	int x,
+	int y,
+	PCH Format,
+	...
+	);
+
 #ifdef SET_ENTRY
 NTSTATUS
 NTAPI
@@ -141,14 +160,14 @@ EntryPoint(
 
 	__try
 	{
-		Print ("Env->Unknown: ");
-
-		for (int i=0; i<21; i++)
-		{
-			Print("[%d] = %08x ", i, Startup->Environment->Unknown[i]);
-		}
-
-		Print ("Starting...\n");
+//		Print ("Env->Unknown: ");
+//
+//		for (int i=0; i<21; i++)
+//		{
+//			Print("[%d] = %08x ", i, Startup->Environment->Unknown[i]);
+//		}
+//
+//		Print ("Starting...\n");
 
 		if (InitializeWrapper ())
 		{
@@ -171,7 +190,7 @@ EntryPoint(
 		ZwDelayExecution (FALSE, &second);
 	}
 
-	KdPrint(("\n"));
+	KdPrint(("Loading Windows ...      \n"));
 
 	ZwTerminateProcess (NtCurrentProcess(), Status);
 }
@@ -213,6 +232,23 @@ BOOLEAN
 NTAPI
 CreateProcess(
 	PWSTR ApplicationName,
+	PWSTR CommandLine,
 	PCLIENT_ID ClientId,
 	BOOLEAN WaitForProcess
+	);
+
+BOOLEAN
+NTAPI
+CommandLineToArgv(
+	PSTR CommandLine,
+	int *pArgc,
+	PSTR **pArgv
+	);
+
+BOOLEAN
+NTAPI
+CommandLineToArgvW(
+	PWSTR CommandLine,
+	int *pArgc,
+	PWSTR **pArgv
 	);

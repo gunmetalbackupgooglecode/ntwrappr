@@ -74,6 +74,63 @@ Print (
 	return nSymbols;
 }
 
+/*
+#pragma pack(push,1)
+struct WRITE_STRUCT
+{
+	ULONG X;
+	ULONG Y;
+	UCHAR Unk1;
+	CHAR Buffer[1024];
+};
+#pragma pack(pop)
+
+HANDLE hPrint;
+
+ULONG
+_cdecl
+PrintXY (
+	int x,
+	int y,
+	PCH Format,
+	...
+	)
+{
+	WRITE_STRUCT ws;
+	va_list va;
+	ULONG nSymbols;
+
+	va_start (va, Format);
+
+	ws.X = (ULONG) x;
+	ws.Y = (ULONG) y;
+	ws.Unk1 = TRUE;
+
+	nSymbols = _vsnprintf (ws.Buffer, sizeof(ws.Buffer)-1, Format, va);
+
+	if (hPrint == NULL)
+	{
+		hPrint = CreateFile (L"\\Device\\DisplayStringXY", 
+			GENERIC_WRITE | SYNCHRONIZE | FILE_READ_ATTRIBUTES,
+			FILE_SHARE_READ | FILE_SHARE_WRITE,
+			FILE_OPEN,
+			FILE_SYNCHRONOUS_IO_NONALERT | FILE_NON_DIRECTORY_FILE,
+			FILE_ATTRIBUTE_NORMAL
+			);
+
+		if (hPrint == NULL)
+		{
+			KdPrint(("OpenFile failed for driver\n"));
+			return 0;
+		}
+	}
+
+	WriteFile (hPrint, &ws, sizeof(ws), -1);
+
+	return nSymbols;
+}
+*/
+
 //
 // Native exception filter
 //
@@ -143,14 +200,14 @@ CloseHandle (
 //
 // Open any file
 //
+
 HANDLE
 NTAPI
 OpenFile (
-	PWSTR FileName, 
-	ULONG AccessMode, 
-	ULONG ShareMode, 
-	ULONG Disposition, 
-	ULONG Options
+	PWSTR FileName,
+	ULONG AccessMode,
+	ULONG ShareAccess,
+	ULONG OpenOptions
 	)
 {
 	UNICODE_STRING Name;
@@ -160,7 +217,44 @@ OpenFile (
 	OBJECT_ATTRIBUTES Oa;
 
 	RtlInitUnicodeString (&Name, FileName);
-	InitializeObjectAttributes (&Oa, &Name, 0, 0, 0);
+	InitializeObjectAttributes (&Oa, &Name, OBJ_CASE_INSENSITIVE, 0, 0);
+
+	Status = ZwOpenFile (
+		&Handle,
+		AccessMode,
+		&Oa,
+		&IoStatus,
+		ShareAccess,
+		OpenOptions
+		);
+
+	if (NT_SUCCESS(Status))
+		return Handle;
+
+	KdPrint (( "ZwOpenFile for [%S] returned ntstatus %08x\n", FileName, Status ));
+	return NULL;
+
+}
+
+HANDLE
+NTAPI
+CreateFile (
+	PWSTR FileName, 
+	ULONG AccessMode, 
+	ULONG ShareMode, 
+	ULONG Disposition, 
+	ULONG Options,
+	ULONG Attributes
+	)
+{
+	UNICODE_STRING Name;
+	IO_STATUS_BLOCK IoStatus;
+	NTSTATUS Status;
+	HANDLE Handle;
+	OBJECT_ATTRIBUTES Oa;
+
+	RtlInitUnicodeString (&Name, FileName);
+	InitializeObjectAttributes (&Oa, &Name, OBJ_CASE_INSENSITIVE, 0, 0);
 
 	Status = ZwCreateFile (
 		&Handle,
@@ -168,7 +262,7 @@ OpenFile (
 		&Oa,
 		&IoStatus,
 		NULL,
-		FILE_ATTRIBUTE_NORMAL,
+		Attributes,
 		ShareMode,
 		Disposition,
 		Options,
@@ -250,6 +344,67 @@ ReadFile (
 	}
 	
 	return -2;
+}
+
+ULONG 
+NTAPI
+WriteFile (
+	HANDLE hFile, 
+	PVOID Buffer, 
+	ULONG Length, 
+	ULONG Position
+	)
+{
+	IO_STATUS_BLOCK IoStatus;
+	NTSTATUS Status;
+	LARGE_INTEGER Pos = {0};
+	HANDLE hEvent;
+	OBJECT_ATTRIBUTES EventAttributes;
+
+	Pos.LowPart = Position;
+
+	InitializeObjectAttributes (
+		&EventAttributes,
+		0, 0, 0, 0 );
+
+	Status = ZwCreateEvent (
+		&hEvent,
+		EVENT_ALL_ACCESS,
+		&EventAttributes,
+		SynchronizationEvent,
+		0 );
+
+	if (!NT_SUCCESS(Status))
+	{
+		KdPrint (("ZwCreatEvent failed with status %08x\n", Status));
+		return -1;
+	}
+
+	Status = ZwWriteFile (
+		hFile,
+		hEvent,
+		NULL,
+		NULL,
+		&IoStatus,
+		Buffer,
+		Length,
+		Position == -1 ? NULL : &Pos,
+		NULL );
+	
+	if (Status == STATUS_PENDING)
+	{
+		Status = ZwWaitForSingleObject (hEvent, FALSE, NULL);
+		Status = IoStatus.Status;
+	}
+
+	if (NT_SUCCESS(Status))
+	{
+		ZwClose (hEvent);
+		return IoStatus.Information;
+	}
+
+	KdPrint (("ZwWriteFile failed with status %08x\n", Status));
+	return -1;
 }
 
 //
@@ -369,11 +524,12 @@ OpenKeyboard (
 
 	_snwprintf (buff, sizeof(buff)-1, L"\\Device\\KeyboardClass%d", nClass);
 
-	return OpenFile (buff, 
+	return CreateFile (buff, 
 		GENERIC_READ | SYNCHRONIZE | FILE_READ_ATTRIBUTES, 
 		0,
 		FILE_OPEN,
-		1 );
+		1,
+		FILE_ATTRIBUTE_NORMAL);
 }
 
 //
@@ -721,6 +877,7 @@ BOOLEAN
 NTAPI
 CreateProcess(
 	PWSTR ApplicationName,
+	PWSTR CommandLine,
 	PCLIENT_ID ClientId,
 	BOOLEAN WaitForProcess
 	)
@@ -958,19 +1115,20 @@ CreateProcess(
 
 	*/
 
-	UNICODE_STRING ImagePath;
+	UNICODE_STRING ImagePath, CmdLine;
 	RTL_USER_PROCESS_INFORMATION Info = {0};
 	PRTL_USER_PROCESS_PARAMETERS Params = NULL;
 	NTSTATUS Status;
 
 	RtlInitUnicodeString (&ImagePath, ApplicationName);
+	RtlInitUnicodeString (&CmdLine, CommandLine);
 
 	Status = RtlCreateProcessParameters (
 		&Params,
 		&ImagePath,
 		NULL,
 		NULL,
-		NULL,
+		&CmdLine,
 		NULL,
 		NULL,
 		NULL,
@@ -982,7 +1140,7 @@ CreateProcess(
 	{
 		Status = RtlCreateUserProcess (
 			&ImagePath,
-			0,
+			OBJ_CASE_INSENSITIVE,
 			Params,
 			NULL,
 			NULL,
@@ -1045,4 +1203,112 @@ CreateProcess(
 	}
 
 	return Succeeded;
+}
+
+BOOLEAN
+NTAPI
+CommandLineToArgv(
+	PSTR CommandLine,
+	int *pArgc,
+	PSTR *pArgv
+	)
+{
+	char *ptr;
+	char **args = pArgv;
+
+	for (ptr = CommandLine; isspace(*ptr); ptr++);
+
+	ULONG l = strlen(ptr);
+	while (isspace(ptr[l-1]))
+	{
+		l --;
+		ptr[l] = 0;
+	}
+
+	if (strlen(ptr) == 0)
+		return FALSE;
+
+	int arg=0;
+	char *prev = ptr;
+
+	for (char *sp = ptr; ; sp++)
+	{
+		if (*sp == 0)
+		{
+			args[arg++] = prev;
+			break;
+		}
+
+		if (isspace(*sp))
+		{
+			*(sp++) = 0;
+			args[arg++] = prev;
+
+			if (arg == 20)
+				break;
+			
+			while (isspace(*sp))
+				sp++;
+
+			prev = sp;
+		}
+	}
+
+	*pArgc = arg;
+
+	return TRUE;
+}
+
+BOOLEAN
+NTAPI
+CommandLineToArgvW(
+	PWSTR CommandLine,
+	int *pArgc,
+	PWSTR *pArgv
+	)
+{
+	wchar_t *ptr;
+	wchar_t **args = pArgv;
+
+	for (ptr = CommandLine; isspace(*ptr); ptr++);
+
+	ULONG l = wcslen(ptr);
+	while (isspace(ptr[l-1]))
+	{
+		l --;
+		ptr[l] = 0;
+	}
+
+	if (wcslen(ptr) == 0)
+		return FALSE;
+
+	int arg=0;
+	wchar_t *prev = ptr;
+
+	for (wchar_t *sp = ptr; ; sp++)
+	{
+		if (*sp == 0)
+		{
+			args[arg++] = prev;
+			break;
+		}
+
+		if (iswspace(*sp))
+		{
+			*(sp++) = 0;
+			args[arg++] = prev;
+
+			if (arg == 20)
+				break;
+			
+			while (iswspace(*sp))
+				sp++;
+
+			prev = sp;
+		}
+	}
+
+	*pArgc = arg;
+
+	return TRUE;
 }
