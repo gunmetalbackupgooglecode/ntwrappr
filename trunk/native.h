@@ -301,6 +301,20 @@ typedef struct _RTL_USER_PROCESS_INFORMATION {
   SECTION_IMAGE_INFORMATION ImageInformation;
 } RTL_USER_PROCESS_INFORMATION, *PRTL_USER_PROCESS_INFORMATION;
 
+NTSYSAPI 
+NTSTATUS
+NTAPI
+RtlCreateUserThread(
+  IN HANDLE               ProcessHandle,
+  IN PSECURITY_DESCRIPTOR SecurityDescriptor OPTIONAL,
+  IN BOOLEAN              CreateSuspended,
+  IN ULONG                StackZeroBits,
+  IN SIZE_T               StackReserved,
+  IN SIZE_T               StackCommit,
+  IN PVOID                StartAddress,
+  IN PVOID                StartParameter OPTIONAL,
+  OUT PHANDLE             ThreadHandle,
+  OUT PCLIENT_ID          ClientID );
 
 NTSYSAPI 
 NTSTATUS
@@ -333,6 +347,20 @@ RtlCreateProcessParameters(
     IN PUNICODE_STRING ShellInfo OPTIONAL,
     IN PUNICODE_STRING RuntimeInfo OPTIONAL
    );
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlDestroyProcessParameters(
+	IN PRTL_USER_PROCESS_PARAMETERS ProcessParameters
+	);
+
+NTSYSAPI
+VOID
+NTAPI
+RtlExitUserThread (
+	NTSTATUS Status
+	);
 
 #undef KdPrint
 #define KdPrint(X) Print X
@@ -418,5 +446,482 @@ inline PUNICODE_STRING GetCommandLine ()
 {
 	return &NtCurrentTeb()->Peb->ProcessParameters->CommandLine;
 }
+
+
+
+//
+// Debug Object Access Masks
+//
+#define DEBUG_OBJECT_WAIT_STATE_CHANGE      0x0001
+#define DEBUG_OBJECT_ADD_REMOVE_PROCESS     0x0002
+#define DEBUG_OBJECT_SET_INFORMATION        0x0004
+#define DEBUG_OBJECT_ALL_ACCESS             (STANDARD_RIGHTS_REQUIRED | SYNCHRONIZE | 0x0F)
+
+//
+// Debug Object Information Classes for NtQueryDebugObject
+//
+typedef enum _DEBUGOBJECTINFOCLASS
+{
+    DebugObjectUnusedInformation,
+    DebugObjectKillProcessOnExitInformation
+} DEBUGOBJECTINFOCLASS, *PDEBUGOBJECTINFOCLASS;
+
+//
+// Debug Message API Number
+//
+typedef enum _DBGKM_APINUMBER
+{
+    DbgKmExceptionApi = 0,
+    DbgKmCreateThreadApi = 1,
+    DbgKmCreateProcessApi = 2,
+    DbgKmExitThreadApi = 3,
+    DbgKmExitProcessApi = 4,
+    DbgKmLoadDllApi = 5,
+    DbgKmUnloadDllApi = 6,
+    DbgKmErrorReportApi = 7,
+    DbgKmMaxApiNumber = 8,
+} DBGKM_APINUMBER;
+
+//
+// Debug Object Information Structures
+//
+typedef struct _DEBUG_OBJECT_KILL_PROCESS_ON_EXIT_INFORMATION
+{
+    ULONG KillProcessOnExit;
+} DEBUG_OBJECT_KILL_PROCESS_ON_EXIT_INFORMATION, *PDEBUG_OBJECT_KILL_PROCESS_ON_EXIT_INFORMATION;
+
+
+
+//
+// Debug States
+//
+typedef enum _DBG_STATE
+{
+    DbgIdle,
+    DbgReplyPending,
+    DbgCreateThreadStateChange,
+    DbgCreateProcessStateChange,
+    DbgExitThreadStateChange,
+    DbgExitProcessStateChange,
+    DbgExceptionStateChange,
+    DbgBreakpointStateChange,
+    DbgSingleStepStateChange,
+    DbgLoadDllStateChange,
+    DbgUnloadDllStateChange
+} DBG_STATE, *PDBG_STATE;
+
+//
+// Debug Message Structures
+//
+typedef struct _DBGKM_EXCEPTION
+{
+    EXCEPTION_RECORD ExceptionRecord;
+    ULONG FirstChance;
+} DBGKM_EXCEPTION, *PDBGKM_EXCEPTION;
+
+typedef struct _DBGKM_CREATE_THREAD
+{
+    ULONG SubSystemKey;
+    PVOID StartAddress;
+} DBGKM_CREATE_THREAD, *PDBGKM_CREATE_THREAD;
+
+typedef struct _DBGKM_CREATE_PROCESS
+{
+    ULONG SubSystemKey;
+    HANDLE FileHandle;
+    PVOID BaseOfImage;
+    ULONG DebugInfoFileOffset;
+    ULONG DebugInfoSize;
+    DBGKM_CREATE_THREAD InitialThread;
+} DBGKM_CREATE_PROCESS, *PDBGKM_CREATE_PROCESS;
+
+typedef struct _DBGKM_EXIT_THREAD
+{
+    NTSTATUS ExitStatus;
+} DBGKM_EXIT_THREAD, *PDBGKM_EXIT_THREAD;
+
+typedef struct _DBGKM_EXIT_PROCESS
+{
+    NTSTATUS ExitStatus;
+} DBGKM_EXIT_PROCESS, *PDBGKM_EXIT_PROCESS;
+
+typedef struct _DBGKM_LOAD_DLL
+{
+    HANDLE FileHandle;
+    PVOID BaseOfDll;
+    ULONG DebugInfoFileOffset;
+    ULONG DebugInfoSize;
+    PVOID NamePointer;
+} DBGKM_LOAD_DLL, *PDBGKM_LOAD_DLL;
+
+typedef struct _DBGKM_UNLOAD_DLL
+{
+    PVOID BaseAddress;
+} DBGKM_UNLOAD_DLL, *PDBGKM_UNLOAD_DLL;
+
+//
+// User-Mode Debug State Change Structure
+//
+typedef struct _DBGUI_WAIT_STATE_CHANGE
+{
+    DBG_STATE NewState;
+    CLIENT_ID AppClientId;
+    union
+    {
+        struct
+        {
+            HANDLE HandleToThread;
+            DBGKM_CREATE_THREAD NewThread;
+        } CreateThread;
+        struct
+        {
+            HANDLE HandleToProcess;
+            HANDLE HandleToThread;
+            DBGKM_CREATE_PROCESS NewProcess;
+        } CreateProcessInfo;
+        DBGKM_EXIT_THREAD ExitThread;
+        DBGKM_EXIT_PROCESS ExitProcess;
+        DBGKM_EXCEPTION Exception;
+        DBGKM_LOAD_DLL LoadDll;
+        DBGKM_UNLOAD_DLL UnloadDll;
+    } StateInfo;
+} DBGUI_WAIT_STATE_CHANGE, *PDBGUI_WAIT_STATE_CHANGE;
+
+#define LPC_CLIENT_ID CLIENT_ID
+#define LPC_SIZE_T SIZE_T
+#define LPC_PVOID PVOID
+#define LPC_HANDLE HANDLE
+
+//                                
+// LPC Port Message               
+//                              
+
+typedef struct _PORT_MESSAGE      
+{                                 
+    union                         
+    {                             
+        struct                    
+        {                         
+            USHORT DataLength;    
+            USHORT TotalLength;   
+        } s1;                     
+        ULONG Length;             
+    } u1;                         
+    union                         
+    {                             
+        struct                    
+        {                         
+            USHORT Type;          
+            USHORT DataInfoOffset;
+        } s2;                     
+        ULONG ZeroInit;           
+    } u2;                         
+    union                         
+    {                             
+        LPC_CLIENT_ID ClientId;   
+        double DoNotUseThisField; 
+    };                            
+    ULONG MessageId;              
+    union                         
+    {                             
+        LPC_SIZE_T ClientViewSize;
+        ULONG CallbackId;         
+    };                            
+} PORT_MESSAGE, *PPORT_MESSAGE;   
+
+typedef ULONG CSR_API_NUMBER;
+//
+// LPC Debug Message
+//
+typedef struct _DBGKM_MSG
+{
+    PORT_MESSAGE h;
+    DBGKM_APINUMBER ApiNumber;
+    ULONG ReturnedStatus;
+    union
+    {
+        DBGKM_EXCEPTION Exception;
+        DBGKM_CREATE_THREAD CreateThread;
+        DBGKM_CREATE_PROCESS CreateProcess;
+        DBGKM_EXIT_THREAD ExitThread;
+        DBGKM_EXIT_PROCESS ExitProcess;
+        DBGKM_LOAD_DLL LoadDll;
+        DBGKM_UNLOAD_DLL UnloadDll;
+    };
+} DBGKM_MSG, *PDBGKM_MSG;
+
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+DbgUiConnectToDbg(
+	VOID
+	);
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+DbgUiContinue(
+	IN PCLIENT_ID ClientId,
+	IN NTSTATUS ContinueStatus
+	);
+
+
+NTSYSAPI
+NTSTATUS 
+NTAPI 
+DbgUiConvertStateChangeStructure(
+	IN PDBGUI_WAIT_STATE_CHANGE  WaitStateChange,
+	OUT PVOID                    Win32DebugEvent	 
+	);
+
+NTSYSAPI
+NTSTATUS 
+NTAPI 
+DbgUiDebugActiveProcess(
+	IN HANDLE Process
+	);
+
+NTSYSAPI
+HANDLE 
+NTAPI 
+DbgUiGetThreadDebugObject(
+	VOID
+	);
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+DbgUiIssueRemoteBreakin(
+	IN HANDLE Process
+	);
+
+NTSYSAPI
+VOID
+NTAPI
+DbgUiRemoteBreakin(
+	VOID
+	);
+
+NTSYSAPI
+VOID
+NTAPI
+DbgUiSetThreadDebugObject(
+	IN HANDLE DebugObject
+	);
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+DbgUiStopDebugging(
+	IN HANDLE Process
+	);
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+DbgUiWaitStateChange(
+	OUT PDBGUI_WAIT_STATE_CHANGE DbgUiWaitStateChange,
+	IN PLARGE_INTEGER TimeOut
+	);
+
+NTSYSAPI
+VOID
+NTAPI
+RtlSetLastWin32ErrorAndNtStatusFromNtStatus(
+	NTSTATUS Status
+	);
+
+NTSYSAPI
+VOID
+NTAPI
+RtlSetLastWin32Error(
+	ULONG ErrorCode
+	);
+
+NTSYSAPI
+ULONG
+NTAPI
+RtlGetLastWin32Error(
+	);
+
+int _cdecl atoi( char* );
+
+NTSYSAPI
+USHORT
+NTAPI
+RtlGetCurrentDirectory_U(
+	USHORT MaxLen,
+	PWSTR Buffer
+	);
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlSetCurrentDirectory_U(
+	PUNICODE_STRING Path
+	);
+
+typedef enum _HARDERROR_RESPONSE_OPTION {
+	OptionAbortRetryIgnore, 
+	OptionOk, 
+	OptionOkCancel, 
+	OptionRetryCancel, 
+	OptionYesNo, 
+	OptionYesNoCancel, 
+	OptionShutdownSystem
+} HARDERROR_RESPONSE_OPTION, *PHARDERROR_RESPONSE_OPTION;
+
+typedef enum _HARDERROR_RESPONSE {
+	ResponseReturnToCaller, 
+	ResponseNotHandled, 
+	ResponseAbort, 
+	ResponseCancel, 
+	ResponseIgnore, 
+	ResponseNo, 
+	ResponseOk, 
+	ResponseRetry, 
+	ResponseYes
+} HARDERROR_RESPONSE, *PHARDERROR_RESPONSE;
+
+typedef struct _HARDERROR_MSG {
+  LPC_MESSAGE             LpcMessageHeader;
+  NTSTATUS                ErrorStatus;
+  LARGE_INTEGER           ErrorTime;
+  HARDERROR_RESPONSE_OPTION ResponseOption;
+  HARDERROR_RESPONSE      Response;
+  ULONG                   NumberOfParameters;
+  PVOID                   UnicodeStringParameterMask;
+  ULONG                   Parameters[4];
+} HARDERROR_MSG, *PHARDERROR_MSG;
+
+
+NTSYSAPI 
+NTSTATUS
+NTAPI
+ZwRaiseHardError(
+	IN NTSTATUS ErrorStatus, 
+	IN ULONG NumberOfParameters, 
+	IN PUNICODE_STRING UnicodeStringParameterMask OPTIONAL, 
+	IN PVOID *Parameters, 
+	IN HARDERROR_RESPONSE_OPTION ResponseOption, 
+	OUT PHARDERROR_RESPONSE Response 
+	); 
+
+NTSYSAPI
+NTSTATUS 
+NTAPI
+RtlAdjustPrivilege(
+  ULONG    Privilege,
+  BOOLEAN  Enable,
+  BOOLEAN  CurrentThread,
+  PBOOLEAN Enabled
+ );
+
+#define SE_MACHINE_ACCOUNT_PRIVILEGE      (6L)
+#define SE_TCB_PRIVILEGE                  (7L)
+#define SE_SECURITY_PRIVILEGE             (8L)
+#define SE_TAKE_OWNERSHIP_PRIVILEGE       (9L)
+#define SE_LOAD_DRIVER_PRIVILEGE          (10L)
+#define SE_SYSTEM_PROFILE_PRIVILEGE       (11L)
+#define SE_SYSTEMTIME_PRIVILEGE           (12L)
+#define SE_PROF_SINGLE_PROCESS_PRIVILEGE  (13L)
+#define SE_INC_BASE_PRIORITY_PRIVILEGE    (14L)
+#define SE_CREATE_PAGEFILE_PRIVILEGE      (15L)
+#define SE_CREATE_PERMANENT_PRIVILEGE     (16L)
+#define SE_BACKUP_PRIVILEGE               (17L)
+#define SE_RESTORE_PRIVILEGE              (18L)
+#define SE_SHUTDOWN_PRIVILEGE             (19L)
+#define SE_DEBUG_PRIVILEGE                (20L)
+#define SE_AUDIT_PRIVILEGE                (21L)
+#define SE_SYSTEM_ENVIRONMENT_PRIVILEGE   (22L)
+#define SE_CHANGE_NOTIFY_PRIVILEGE        (23L)
+#define SE_REMOTE_SHUTDOWN_PRIVILEGE      (24L)
+#define SE_UNDOCK_PRIVILEGE               (25L)
+#define SE_SYNC_AGENT_PRIVILEGE           (26L)
+#define SE_ENABLE_DELEGATION_PRIVILEGE    (27L)
+#define SE_MANAGE_VOLUME_PRIVILEGE        (28L)
+#define SE_IMPERSONATE_PRIVILEGE          (29L)
+#define SE_CREATE_GLOBAL_PRIVILEGE        (30L)
+
+typedef struct _LPC_SECTION_OWNER_MEMORY {
+  ULONG                   Length;
+  HANDLE                  SectionHandle;
+  ULONG                   OffsetInSection;
+  ULONG                   ViewSize;
+  PVOID                   ViewBase;
+  PVOID                   OtherSideViewBase;
+} LPC_SECTION_OWNER_MEMORY, *PLPC_SECTION_OWNER_MEMORY;
+
+typedef struct _LPC_SECTION_MEMORY {
+  ULONG                   Length;
+  ULONG                   ViewSize;
+  PVOID                   ViewBase;
+} LPC_SECTION_MEMORY, *PLPC_SECTION_MEMORY;
+
+
+NTSYSAPI 
+NTSTATUS
+NTAPI
+ZwCreatePort(
+  OUT PHANDLE             PortHandle,
+  IN POBJECT_ATTRIBUTES   ObjectAttributes,
+  IN ULONG                MaxConnectInfoLength,
+  IN ULONG                MaxDataLength,
+  IN OUT PULONG           Reserved OPTIONAL );
+
+NTSYSAPI 
+NTSTATUS
+NTAPI
+ZwReplyWaitReceivePort(
+  IN HANDLE               PortHandle,
+  OUT PHANDLE             ReceivePortHandle OPTIONAL,
+  IN PLPC_MESSAGE         Reply OPTIONAL,
+  OUT PLPC_MESSAGE        IncomingRequest );
+
+NTSYSAPI 
+NTSTATUS
+NTAPI
+ZwRequestPort(
+  IN HANDLE               PortHandle,
+  IN PLPC_MESSAGE         Request );
+
+NTSYSAPI 
+NTSTATUS
+NTAPI
+ZwRequestWaitReplyPort(
+  IN HANDLE               PortHandle,
+  IN PLPC_MESSAGE         Request,
+  OUT PLPC_MESSAGE        IncomingReply );
+
+NTSYSAPI 
+NTSTATUS
+NTAPI
+ZwReplyPort(
+  IN HANDLE               PortHandle,
+  IN PLPC_MESSAGE         Reply );
+
+NTSYSAPI 
+NTSTATUS
+NTAPI
+ZwAcceptConnectPort(
+  OUT PHANDLE             ServerPortHandle,
+  IN HANDLE               AlternativeReceivePortHandle OPTIONAL,
+  IN PLPC_MESSAGE         ConnectionReply,
+  IN BOOLEAN              AcceptConnection,
+  IN OUT PLPC_SECTION_OWNER_MEMORY ServerSharedMemory OPTIONAL,
+  OUT PLPC_SECTION_MEMORY ClientSharedMemory OPTIONAL );
+
+NTSYSAPI 
+NTSTATUS
+NTAPI
+ZwCompleteConnectPort(
+  IN HANDLE               PortHandle );
+
+NTSYSAPI 
+NTSTATUS
+NTAPI
+ZwSetDefaultHardErrorPort(
+  IN HANDLE               PortHandle );
 
 }

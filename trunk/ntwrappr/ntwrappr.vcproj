@@ -178,7 +178,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalOptions="/ALIGN:32 /subsystem:native /safeseh:no /DRIVER /DLL"
+				AdditionalOptions="/ALIGN:32 /subsystem:native /safeseh:no /DRIVER /DLL /SECTION:.sdata,rws"
 				AdditionalDependencies="ntdll.lib $(NOINHERIT)"
 				OutputFile="../bin/ntwrappr.dll"
 				LinkIncremental="1"
@@ -222,6 +222,10 @@
 	<Files>
 		<File
 			RelativePath=".\dllentry.cpp"
+			>
+		</File>
+		<File
+			RelativePath="..\native.h"
 			>
 		</File>
 		<File
