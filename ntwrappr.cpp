@@ -1,16 +1,11 @@
 //
-// Tiny Native command processor
+// NT Wrapper Source
 //
-// (C) Great, 2006-2008
+// (C) Great, 2006-2009
 //
 
 #include "ntwrappr.h"
 
-//NTSTATUS NativeEntry(IN PUNICODE_STRING ImageFile, IN PUNICODE_STRING CommandLine);
-
-//
-// Display formatted unicode string
-//
 
 /*
 ULONG
@@ -41,6 +36,41 @@ DisplayString (
 	return nSymbols;
 }
 */
+
+VOID
+NTAPI
+SetLastStatus(
+	NTSTATUS Status
+	)
+{
+	// Use this place to store NTSTATUS.
+	RtlSetLastWin32Error (Status);
+}
+
+NTSTATUS
+NTAPI
+GetLastStatus(
+	)
+{
+	return RtlGetLastWin32Error ();
+}
+
+static
+BOOLEAN
+CheckNtStatus(
+	NTSTATUS Status
+	)
+{
+	if (!NT_SUCCESS(Status))
+	{
+		SetLastStatus (Status);
+		return FALSE;
+	}
+	return TRUE;
+}
+
+#undef NT_SUCCESS
+#define NT_SUCCESS(STATUS) CheckNtStatus(STATUS)
 
 ULONG
 _cdecl
@@ -145,10 +175,20 @@ ExceptionFilter(
 	if (erec->ExceptionCode != MANUALLY_INITIATED_CRASH)
 	{
 		Print (
+			"********************************************\n"
+			"*       Unhandled exception caught         *\n"
+			"********************************************\n"
+			"Exception Record: %08x\n"
+			"Context Record: %08x\n"
+			"********************************************\n"
 			"Exception %08x occurred at %08x\n"
 			"Number parameters: %d\n"
 			"Parameters: %08x %08x %08x %08x\n"
-			"The process will be terminated\n",
+			"The process will be terminated\n"
+			"********************************************\n"
+			,
+			einfo->ExceptionRecord,
+			einfo->ContextRecord,
 			erec->ExceptionCode,
 			erec->ExceptionAddress,
 			erec->NumberParameters,
@@ -157,6 +197,11 @@ ExceptionFilter(
 			erec->ExceptionInformation[2],
 			erec->ExceptionInformation[3]
 			);
+	}
+	else
+	{
+		ZwTerminateProcess (NtCurrentProcess(), 
+			MANUALLY_INITIATED_CRASH);
 	}
 
 	return EXCEPTION_EXECUTE_HANDLER;
@@ -742,6 +787,14 @@ InitializeWrapper(
 
 	heap = RtlCreateHeap (HEAP_GROWABLE|HEAP_NO_SERIALIZE, 0, 0, 0, 0, 0);
 
+	if (heap == NULL)
+	{
+		KdPrint(("RtlCreateHeap failed!\n"));
+		return FALSE;
+	}
+
+	SetProcessHeap (heap);
+
 //	KdPrint(("heap = %08x\n", heap));
 
 	for (int i=0; i<10; i++)
@@ -878,243 +931,11 @@ NTAPI
 CreateProcess(
 	PWSTR ApplicationName,
 	PWSTR CommandLine,
-	PCLIENT_ID ClientId,
+	PCLIENT_ID ClientId OPTIONAL,
 	BOOLEAN WaitForProcess
 	)
 {
 	BOOLEAN Succeeded = FALSE;
-
-	/*
-	IO_STATUS_BLOCK IoStatus;
-	OBJECT_ATTRIBUTES Oa;
-	UNICODE_STRING Name;
-	HANDLE hFile = NULL;
-	HANDLE hSection = NULL;
-	HANDLE hProcess = NULL;
-	NTSTATUS Status;
-	HANDLE hThread = NULL;
-
-	__try
-	{
-		RtlInitUnicodeString (&Name, ApplicationName);
-		InitializeObjectAttributes (&Oa,
-			&Name,
-			OBJ_CASE_INSENSITIVE,
-			0,
-			NULL
-			);
-
-		Status = ZwOpenFile (
-			&hFile,
-			SYNCHRONIZE | FILE_EXECUTE,
-			&Oa,
-			&IoStatus,
-			FILE_SHARE_READ | FILE_SHARE_DELETE,
-			FILE_SYNCHRONOUS_IO_NONALERT | FILE_NON_DIRECTORY_FILE
-			);
-
-		KdPrint(("ZwOpenFile = %08x\n", Status));
-
-		if (!NT_SUCCESS(Status))
-			__leave;
-
-		Status = ZwCreateSection (
-			&hSection,
-			SECTION_ALL_ACCESS,
-			NULL,
-			NULL,
-			PAGE_EXECUTE,
-			SEC_IMAGE,
-			hFile
-			);
-
-		KdPrint(("ZwCreateSection = %08x\n", Status));
-
-		ZwClose (hFile);
-		hFile = NULL;
-
-		if (!NT_SUCCESS(Status))
-			__leave;
-
-		SECTION_IMAGE_INFORMATION ImageInfo;
-
-		Status = ZwQuerySection (
-			hSection,
-			SectionImageInformation,
-			&ImageInfo,
-			sizeof(ImageInfo),
-			NULL
-			);
-
-		KdPrint(("ZwQuerySection = %08x\n", Status));
-
-		if (!NT_SUCCESS(Status))
-			__leave;
-
-		PVOID EntryPoint = ImageInfo.EntryPoint;
-
-		KdPrint(("EntryPoint = %08x\n", EntryPoint));
-
-		InitializeObjectAttributes (&Oa, 0, 0, 0, 0);
-
-		Status = ZwCreateProcess (
-			&hProcess,
-			PROCESS_ALL_ACCESS,
-			&Oa,
-			NtCurrentProcess(),
-			FALSE,
-			hSection,
-			NULL,
-			NULL
-			);
-
-		KdPrint(("ZwCreateProcess = %08x\n", Status));
-
-		if (!NT_SUCCESS(Status))
-			__leave;
-
-		PROCESS_BASIC_INFORMATION Proc;
-
-		Status = ZwQueryInformationProcess(
-			hProcess,
-			ProcessBasicInformation,
-			&Proc,
-			sizeof (Proc),
-			NULL
-			);
-
-		KdPrint(("ZwQueryInformationProcess = %08x, PEB %08x\n", Status, Proc.PebBaseAddress));
-
-		if (!NT_SUCCESS(Status))
-			__leave;
-
-		PVOID Peb = Proc.PebBaseAddress;
-
-		// PUSH some parameters in PEB
-
-
-		//
-		// Create the thread.
-		//
-
-		INITIAL_TEB Teb = {0};
-		CONTEXT Context = {0};
-		ULONG AllocSize = PAGE_SIZE * 4;
-		PVOID p;
-		ULONG OldProtect;
-		CLIENT_ID Cid;
-		PVOID Stack = NULL;
-
-		Status = ZwAllocateVirtualMemory (
-			hProcess,
-			&Stack,
-			0,
-			&AllocSize,
-			MEM_RESERVE|MEM_COMMIT,
-			PAGE_READWRITE
-			);
-
-		KdPrint(("ZwAllocateVirtualMemory = %08x, * = %08x\n", Status, Stack));
-
-		if (NT_SUCCESS(Status))
-		{
-			Teb.StackAllocationBase = Stack;
-			Teb.StackBase = (PCHAR) Stack + AllocSize;
-
-			{
-				AllocSize = PAGE_SIZE;
-				Status = ZwProtectVirtualMemory (
-					hProcess,
-					&Stack,
-					&AllocSize,
-					PAGE_READWRITE | PAGE_GUARD,
-					&OldProtect
-					);
-
-				KdPrint(("ZwProtectVirtualMemory = %08x\n", Status));
-
-				if (NT_SUCCESS(Status))
-				{
-					Context.ContextFlags = CONTEXT_FULL;
-					Context.SegCs = 0x1b;
-					Context.SegFs = 0x3b;
-					Context.SegEs = 0x23;
-					Context.SegDs = 0x23;
-					Context.SegSs = 0x23;
-					Context.SegGs = 0x00;
-					Context.EFlags = 0x202;
-
-					Context.Esp = (ULONG)Teb.StackBase - 4;
-					Context.Eip = (ULONG) EntryPoint;
-					
-					InitializeObjectAttributes (&Oa, 0, 0, 0, 0);
-
-					Status = ZwCreateThread (
-						&hThread,
-						THREAD_ALL_ACCESS,
-						&Oa,
-						hProcess,
-						&Cid,
-						&Context,
-						(PINITIAL_TEB) &Teb,
-						TRUE
-						);
-
-					KdPrint(("ZwCreateThread = %08x, hThread %08x\n", Status, hThread));
-
-					if (NT_SUCCESS(Status))
-					{
-						Status = ZwResumeThread (hThread, NULL);
-
-						KdPrint(("ZwResumeThread = %08x\n", Status));
-
-						if (NT_SUCCESS(Status))
-						{
-							*ClientId = Cid;
-							Succeeded = TRUE;
-							__leave;
-						}
-
-						ZwTerminateThread (hThread, Status);
-						ZwClose (hThread);
-					}
-				}
-			}
-
-			AllocSize = 0;
-
-			ZwFreeVirtualMemory (
-				hProcess,
-				&p,
-				&AllocSize,
-				MEM_RELEASE
-				);
-		}
-		
-		AllocSize = PAGE_SIZE * 2;
-
-		ZwFreeVirtualMemory (
-			hProcess,
-			&Teb.StackAllocationBase,
-			&AllocSize,
-			MEM_DECOMMIT
-			);
-	}
-	__finally
-	{
-		if (!Succeeded)
-		{
-			if (hProcess)
-				ZwClose (hProcess);
-			if (hSection)
-				ZwClose (hSection);
-			if (hFile)
-				ZwClose (hFile);
-		}
-	}
-
-	*/
-
 	UNICODE_STRING ImagePath, CmdLine;
 	RTL_USER_PROCESS_INFORMATION Info = {0};
 	PRTL_USER_PROCESS_PARAMETERS Params = NULL;
@@ -1163,6 +984,9 @@ CreateProcess(
 			{
 				Succeeded = TRUE;
 
+				if (ClientId)
+					*ClientId = Info.ClientId;
+
 				if (WaitForProcess)
 				{
 					Status = ZwWaitForSingleObject (
@@ -1183,19 +1007,7 @@ CreateProcess(
 			Print("RtlCreateUserProcess = %08x\n", Status);
 		}
 
-		SIZE_T Size = 0;
-
-		Status = ZwFreeVirtualMemory (
-			NtCurrentProcess(),
-			(PVOID*) &Params,
-			&Size,
-			MEM_DECOMMIT | MEM_RELEASE
-			);
-
-		if (!NT_SUCCESS(Status))
-		{
-			Print("ZwFreeVirtualMemory[%08x] = %08x\n", Params, Status);
-		}
+		RtlDestroyProcessParameters (Params);
 	}
 	else
 	{
@@ -1203,6 +1015,62 @@ CreateProcess(
 	}
 
 	return Succeeded;
+}
+
+BOOLEAN
+NTAPI
+CreateThread(
+	HANDLE ProcessHandle,
+	BOOLEAN CreateSuspended,
+	PVOID StartAddress,
+	PVOID Parameter OPTIONAL,
+	PHANDLE ThreadHandle OPTIONAL,
+	PCLIENT_ID ClientId OPTIONAL
+	)
+{
+	ULONG StackLimit = 0;
+	ULONG StackBase = 0;
+	NTSTATUS Status;
+	HANDLE hThread;
+	CLIENT_ID Cid;
+
+	Status = RtlCreateUserThread (
+		ProcessHandle,
+		NULL,
+		CreateSuspended,
+		0,
+		0,
+		PAGE_SIZE,
+		StartAddress,
+		Parameter,
+		&hThread,
+		&Cid
+		);
+
+	if (NT_SUCCESS(Status))
+	{
+		KdPrint(("RtlCreateUserThread OK, stack: %08x %08x h %08x TID %08x PID %08x\n",
+			StackLimit,
+			StackBase,
+			hThread,
+			Cid.UniqueThread,
+			Cid.UniqueProcess
+			));
+
+		if (ThreadHandle)
+			*ThreadHandle = hThread;
+		else
+			CloseHandle (hThread);
+
+		if (ClientId)
+			*ClientId = Cid;
+
+		return TRUE;
+	}
+
+	KdPrint(("RtlUserCreateProcess failed with status %08x\n", Status));
+
+	return FALSE;
 }
 
 BOOLEAN
@@ -1311,4 +1179,152 @@ CommandLineToArgvW(
 	*pArgc = arg;
 
 	return TRUE;
+}
+
+NTSTATUS
+NTAPI
+WinPathToNtPath(
+	OUT PUNICODE_STRING NtPath,
+	IN PUNICODE_STRING WinPath
+	)
+{
+	RtlInitUnicodeString (NtPath, L"\\??\\");
+	return RtlAppendUnicodeStringToString (NtPath, WinPath);
+}
+
+NTSTATUS
+NTAPI
+AllocateUnicodeString(
+	OUT PUNICODE_STRING String,
+	IN USHORT MaximumLength
+	)
+{
+	String->Length = 0;
+	String->MaximumLength = MaximumLength;
+	String->Buffer = (PWSTR) halloc (MaximumLength);
+	if (String->Buffer == NULL)
+		return STATUS_INSUFFICIENT_RESOURCES;
+	String->Buffer[0] = L'\0';
+	return STATUS_SUCCESS;
+}
+
+VOID
+NTAPI
+SetProcessHeap(
+	HANDLE hHeap
+	)
+{
+	NtCurrentTeb()->Peb->ProcessHeap = hHeap;
+}
+
+HANDLE
+NTAPI
+GetProcessHeap(
+	)
+{
+	return NtCurrentTeb()->Peb->ProcessHeap;
+}
+
+VOID
+NTAPI
+GetCurrentDirectory(
+	OUT PUNICODE_STRING Path
+	)
+{
+	Path->Length = RtlGetCurrentDirectory_U (Path->MaximumLength, Path->Buffer);
+}
+
+HANDLE
+NTAPI
+CreatePort(
+	PWSTR PortName OPTIONAL,
+	ULONG MaximumDataLength
+	)
+{
+	OBJECT_ATTRIBUTES Oa;
+	UNICODE_STRING Name;
+	NTSTATUS Status;
+	HANDLE hPort = NULL;
+
+	if (PortName)
+	{
+		RtlInitUnicodeString (&Name, PortName);
+		InitializeObjectAttributes (&Oa, &Name, OBJ_CASE_INSENSITIVE, 0, 0);
+	}
+	else
+	{
+		InitializeObjectAttributes (&Oa, 0, 0, 0, 0);
+	}
+
+	if (MaximumDataLength == 0)
+		MaximumDataLength = 0x130;
+
+	Status = ZwCreatePort(
+		&hPort,
+		&Oa,
+		0,
+		MaximumDataLength,
+		NULL
+		);
+
+	return NT_SUCCESS(Status) ? hPort : NULL;
+}
+
+BOOLEAN
+NTAPI
+WaitReceivePort(
+	HANDLE hPort,
+	PLPC_MESSAGE Msg
+	)
+{
+	NTSTATUS Status;
+
+	Status = ZwReplyWaitReceivePort (
+		hPort,
+		NULL,
+		NULL,
+		Msg
+		);
+
+	return NT_SUCCESS(Status);
+}
+
+BOOLEAN
+NTAPI
+ReplyPort(
+	HANDLE hPort,
+	PLPC_MESSAGE Msg
+	)
+{
+	NTSTATUS Status;
+
+	Status = ZwReplyPort (hPort, Msg);
+
+	return NT_SUCCESS(Status);
+}
+
+BOOLEAN
+NTAPI
+AcceptPort(
+	PLPC_MESSAGE Msg,
+	PHANDLE AcceptedHandle
+	)
+{
+	NTSTATUS Status;
+
+	Status = ZwAcceptConnectPort (
+		AcceptedHandle,
+		NULL,
+		Msg,
+		TRUE,
+		NULL,
+		NULL
+		);
+
+	if (NT_SUCCESS(Status))
+	{
+		Status = ZwCompleteConnectPort (*AcceptedHandle);
+	}
+
+	return NT_SUCCESS(Status);
 }

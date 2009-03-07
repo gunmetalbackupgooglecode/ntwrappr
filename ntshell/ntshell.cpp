@@ -1,4 +1,6 @@
 #define SET_ENTRY
+#define WAIT_N_SECONDS
+#define FAIL_ON_EXCEPTION
 #define _CRTIMP
 #include "../ntwrappr.h"
 #include "../sprtapi.h"
@@ -40,10 +42,10 @@ void logon()
 		{
 			if (!stricmp(userdb[i].username, user) &&
 				!strcmp (userdb[i].password, pass))
+
 			{
-				Print ("Logged on\n");
+				Print ("Logged in\n");
 				logged_id = i;
-				sprintf (prompt, "%s# ", userdb[i].username);
 				return;
 			}
 		}
@@ -158,7 +160,7 @@ void ProcessCommand (int argc, char **argv, char *fullremain)
 	if (!stricmp (argv[0], "args"))
 	{
 		PUNICODE_STRING Args = GetCommandLine ();
-		ANSI_STRING as;
+//		ANSI_STRING as;
 
 		Print("CommandLine: '%S'\n", Args->Buffer);
 		return;
@@ -221,7 +223,335 @@ void ProcessCommand (int argc, char **argv, char *fullremain)
 		return;
 	}
 
+	if (!stricmp(argv[0], "pwd"))
+	{
+		wchar_t buffer[1024];
+
+		RtlGetCurrentDirectory_U (sizeof(buffer)/2-2, buffer);
+
+		Print("CurrentDirectory: '%S'\n", buffer);
+
+		return;
+	}
+
+	if (!stricmp(argv[0], "cwd"))
+	{
+		ANSI_STRING as; RtlInitAnsiString (&as, fullremain);
+		UNICODE_STRING wFullRemain;
+		if (NT_SUCCESS(RtlAnsiStringToUnicodeString (&wFullRemain, &as, TRUE)))
+		{
+			RtlSetCurrentDirectory_U (&wFullRemain);
+			RtlFreeUnicodeString (&wFullRemain);
+		}
+
+		return;
+	}
+
+	PWSTR TryParts[] = {
+		L"",
+		L".exe",
+		L".com"
+	};
+	int nParts = sizeof(TryParts)/sizeof(TryParts[0]);
+
+	for (int i=0; i<nParts; i++)
+	{
+		ANSI_STRING aCommand;
+		UNICODE_STRING Command;
+		RtlInitAnsiString (&aCommand, argv[0]);
+		RtlAnsiStringToUnicodeString (&Command, &aCommand, TRUE);
+
+		UNICODE_STRING NtPath;
+		UNICODE_STRING CurrentDirectory;
+
+		AllocateUnicodeString (&NtPath, 1024);
+		AllocateUnicodeString (&CurrentDirectory, 1024);
+		GetCurrentDirectory (&CurrentDirectory);
+
+		RtlAppendUnicodeToString (&NtPath, L"\\??\\");
+		RtlAppendUnicodeStringToString (&NtPath, &CurrentDirectory);
+		RtlAppendUnicodeToString (&NtPath, L"\\");
+		RtlAppendUnicodeStringToString (&NtPath, &Command);
+		RtlAppendUnicodeToString (&NtPath, TryParts[i]);
+		
+		HANDLE hFile = OpenFile (
+			NtPath.Buffer,
+			FILE_READ_ATTRIBUTES, 
+			FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, 
+			FILE_NON_DIRECTORY_FILE
+			);
+		if (hFile)
+		{
+			// File exists.
+	//		Print("%S exists\n", NtPath.Buffer);
+
+			wchar_t commandline[512] = L"";
+			if (fullremain)
+				mbstowcs (commandline, fullremain, sizeof(commandline)/2 - 2);
+
+
+			if (!CreateProcess (NtPath.Buffer, commandline, NULL, TRUE))
+			{
+				Print("CreateProcess failed for '%S' '%S'\n", NtPath.Buffer, commandline);
+			}
+
+			CloseHandle (hFile);
+			return;
+		}
+
+		RtlFreeUnicodeString (&NtPath);
+		RtlFreeUnicodeString (&CurrentDirectory);
+		RtlFreeUnicodeString (&Command);
+	}
+
 	Print ("%s: Command not found\n", argv[0]);
+}
+
+wchar_t curdir[1024];
+
+VOID
+NTAPI
+PrintMessage(
+	PLPC_MESSAGE lpc
+	)
+{
+	char *MessageTypes[] = {
+		"LPC_NEW_MESSAGE",
+		"LPC_REQUEST",
+		"LPC_REPLY",
+		"LPC_DATAGRAM",
+		"LPC_LOST_REPLY",
+		"LPC_PORT_CLOSED",
+		"LPC_CLIENT_DIED",
+		"LPC_EXCEPTION",
+		"LPC_DEBUG_EVENT",
+		"LPC_ERROR_EVENT",
+		"LPC_CONNECTION_REQUEST"
+	};
+
+	Print("LPC_MESSAGE %08x:\n", lpc);
+	Print(" DataSize = %08x\n", lpc->DataSize);
+	Print(" MessageSize = %08x\n", lpc->MessageSize);
+	Print(" MessageType = %s [%08x]\n", lpc->MessageType > 10 ? "LPC_UNKNOWN" : MessageTypes[lpc->MessageType], lpc->MessageType);
+	Print(" VirtualRangesOffset = %08x\n", lpc->VirtualRangesOffset);
+	Print(" ClientId.UniqueThread = %08x\n", lpc->ClientId.UniqueThread);
+	Print(" ClientId.UniqueProcess = %08x\n", lpc->ClientId.UniqueProcess);
+	Print(" MessageId = %08x\n", lpc->MessageId);
+	Print(" SectionSize = %08x\n", lpc->SectionSize);
+
+	for( int i=0; i<lpc->DataSize; i++ ) 
+	{
+		Print(" %02x", lpc->Data[i]);
+	}
+
+	Print("\n\n");
+}
+
+VOID
+NTAPI
+HardErrorThread(
+	PVOID Parameter
+	)
+{
+	HANDLE hHardErrorPort;
+	NTSTATUS Status;
+
+	hHardErrorPort = CreatePort (NULL, 0);
+	if (hHardErrorPort == NULL)
+	{
+		Status = GetLastStatus();
+		Print("HARDERR: CreatePort failed with status %08x\n", Status);
+		RtlExitUserThread (Status);
+	}
+
+	Status = ZwSetDefaultHardErrorPort (hHardErrorPort);
+
+	if (!NT_SUCCESS(Status))
+	{
+		Print("HARDERR: ZwSetDefaultHardErrorPort failed with status %08x\n", Status);
+		CloseHandle (hHardErrorPort);
+		RtlExitUserThread (Status);
+	}
+
+	UCHAR MessageBuffer [0x148];
+	LPC_MESSAGE *Message = (LPC_MESSAGE*) MessageBuffer;
+
+	for (;;)
+	{
+		if (!WaitReceivePort (hHardErrorPort, Message))
+		{
+			Print("HARDERR: WaitReceivePort failed with st %08x\n", GetLastStatus());
+		}
+
+		switch (Message->MessageType)
+		{
+		case LPC_ERROR_EVENT:
+			{
+				PHARDERROR_MSG h = (PHARDERROR_MSG) Message;
+
+				Print(
+					"*******************************************\n"
+					"*   Hard Error Port got a message          \n"
+					"*******************************************\n"
+					" ErrorStatus = %08x\n"
+					" ResponseOption = %08x\n"
+					" NumberOfParameters = %08x\n"
+					" ParametersMask = %08x\n"
+					" Parameters [%08x %08x %08x %08x]\n"
+					"********************************************\n"
+					,
+					h->ErrorStatus,
+					h->ResponseOption,
+					h->NumberOfParameters,
+					h->UnicodeStringParameterMask,
+					h->Parameters[0], h->Parameters[1], 
+					h->Parameters[2], h->Parameters[3]
+				);
+
+				h->Response = ResponseNotHandled;
+
+				switch (h->ResponseOption)
+				{
+				case OptionAbortRetryIgnore:
+
+					{
+						char str[10];
+
+						do
+						{
+							ReadString (GetDefaultKeyboard(), 
+								"Abort/Retry/Ignore (ARI)? ", str, sizeof(str)-1, 0);
+
+							str[0] = toupper (str[0]);
+						}
+						while (str[0] != 'A' &&
+							   str[0] != 'R' &&
+							   str[0] != 'I');
+
+						switch (str[0])
+						{
+						case 'A': h->Response = ResponseAbort; break;
+						case 'R': h->Response = ResponseRetry; break;
+						case 'I': h->Response = ResponseIgnore; break;
+						}
+					}
+					break;
+
+				case OptionOk:
+					{
+						h->Response = ResponseOk;
+						break;
+					}
+
+				case OptionOkCancel:
+					{
+						char str[10];
+
+						do
+						{
+							ReadString (GetDefaultKeyboard(), 
+								"Ok/Cancel (OC)? ",
+								str, sizeof(str)-1, 0);
+
+							str[0] = toupper (str[0]);
+						}
+						while (str[0] != 'O' &&
+							   str[0] != 'C');
+
+						switch (str[0])
+						{
+						case 'O': h->Response = ResponseOk; break;
+						case 'C': h->Response = ResponseCancel; break;
+						}
+					}
+					break;
+
+				case OptionRetryCancel:
+					{
+						char str[10];
+
+						do
+						{
+							ReadString (GetDefaultKeyboard(), 
+								"Retry/Cancel (RC)? ", 
+								str, sizeof(str)-1, 0);
+
+							str[0] = toupper (str[0]);
+						}
+						while (str[0] != 'R' &&
+							   str[0] != 'C');
+
+						switch (str[0])
+						{
+						case 'R': h->Response = ResponseRetry; break;
+						case 'C': h->Response = ResponseCancel; break;
+						}
+					}
+					break;
+				
+				case OptionYesNo:
+					{
+						char str[10];
+
+						do
+						{
+							ReadString (GetDefaultKeyboard(), 
+								"Yes/No (YN)? ", 
+								str, sizeof(str)-1, 0);
+
+							str[0] = toupper (str[0]);
+						}
+						while (str[0] != 'Y' &&
+							   str[0] != 'N');
+
+						switch (str[0])
+						{
+						case 'Y': h->Response = ResponseYes; break;
+						case 'N': h->Response = ResponseNo; break;
+						}
+					}
+					break;
+
+				case OptionYesNoCancel:
+
+					{
+						char str[10];
+
+						do
+						{
+							ReadString (GetDefaultKeyboard(), 
+								"Yes/No/Cancel (YNC)? ", str, sizeof(str)-1, 0);
+
+							str[0] = toupper (str[0]);
+						}
+						while (str[0] != 'Y' &&
+							   str[0] != 'N' &&
+							   str[0] != 'C');
+
+						switch (str[0])
+						{
+						case 'Y': h->Response = ResponseYes; break;
+						case 'N': h->Response = ResponseNo; break;
+						case 'C': h->Response = ResponseCancel; break;
+						}
+					} // case
+					break;
+				} // switch
+
+				ReplyPort (hHardErrorPort, &h->LpcMessageHeader);
+
+			} // case
+			break;
+
+		default:
+
+			PrintMessage (Message);
+
+		} // switch
+			
+	} // for (;;)
+
+	RtlExitUserThread (STATUS_SUCCESS);
 }
 
 NTSTATUS
@@ -234,12 +564,28 @@ NativeEntry(
 	Print("NT Shell 0.1\n");
 	Print("Press ESC to continue loading Windows.\n");
 
+	if(!CreateThread (NtCurrentProcess(), 
+		FALSE, 
+		HardErrorThread,
+		NULL,
+		NULL,
+		NULL
+		))
+	{
+		Print("CreateThread failed for harderror thread with status %08x\n", GetLastStatus());
+	}
+
 logoff:
 	logon();
 
 	for (;;)
 	{
 		char cmd[1024];
+
+		curdir[0] = 0;
+		RtlGetCurrentDirectory_U (sizeof(curdir), curdir);
+		sprintf (prompt, "[%s$%S]# ", userdb[logged_id].username, curdir);
+
 		ReadString (GetDefaultKeyboard(), prompt, cmd, sizeof(cmd)-1, 0);
 
 		char *ptr;

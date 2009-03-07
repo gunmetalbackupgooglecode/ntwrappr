@@ -2,8 +2,6 @@
 
 BOOLEAN NTAPI DllEntry (PVOID Base, ULONG Reason, PVOID Unknown)
 {
-	Print("DllEntry(%08x,%08x,%08x)\n", Base, Reason, Unknown);
-
 	if (Reason == 1)
 	{
 		PUCHAR NtHeaders = ((PUCHAR)Base + *(ULONG*)((PUCHAR)Base + 0x3c));
@@ -11,8 +9,6 @@ BOOLEAN NTAPI DllEntry (PVOID Base, ULONG Reason, PVOID Unknown)
 		PVOID ImageBase = Base;
 		ULONG OldProtect;
 		NTSTATUS Status;
-
-		Print("SizeOfImage %08x\n", ImageSize);
 
 		Status = ZwProtectVirtualMemory (
 			NtCurrentProcess(),
@@ -22,7 +18,8 @@ BOOLEAN NTAPI DllEntry (PVOID Base, ULONG Reason, PVOID Unknown)
 			&OldProtect
 			);
 
-		Print("ZwProtectVirtualMemory = %08x\n", Status);
+		if (!NT_SUCCESS(Status))
+			Print("ZwProtectVirtualMemory = %08x\n", Status);
 	}
 
 	return TRUE;

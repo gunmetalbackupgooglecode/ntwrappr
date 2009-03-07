@@ -20,8 +20,21 @@ EXPORTS
 	CreateDirectory
 	CreateSymbolicLink
 	CreateProcess
+	CreateThread
 	CommandLineToArgv
 	CommandLineToArgvW
 	strdup
 	str_replace_char
 	stri_replace_char
+	SetLastStatus
+	GetLastStatus
+	AllocateUnicodeString
+	WinPathToNtPath
+	SetProcessHeap
+	GetProcessHeap
+	GetCurrentDirectory
+	CreatePort
+	WaitReceivePort
+	AcceptPort
+	ReplyPort
+	

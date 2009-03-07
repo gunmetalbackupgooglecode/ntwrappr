@@ -18,6 +18,8 @@ DisplayString (
 	);
 */
 
+extern "C" {
+
 LONG 
 NTAPI
 ExceptionFilter(
@@ -33,6 +35,15 @@ CreateFile (
 	ULONG Disposition, 
 	ULONG Options,
 	ULONG Attributes
+	);
+
+HANDLE
+NTAPI
+OpenFile (
+	PWSTR FileName,
+	ULONG AccessMode,
+	ULONG ShareAccess,
+	ULONG OpenOptions
 	);
 
 ULONG 
@@ -160,15 +171,6 @@ EntryPoint(
 
 	__try
 	{
-//		Print ("Env->Unknown: ");
-//
-//		for (int i=0; i<21; i++)
-//		{
-//			Print("[%d] = %08x ", i, Startup->Environment->Unknown[i]);
-//		}
-//
-//		Print ("Starting...\n");
-
 		if (InitializeWrapper ())
 		{
 			Status = NativeEntry (	&Startup->Environment->ImageFile,
@@ -178,19 +180,55 @@ EntryPoint(
 	__except (ExceptionFilter(GetExceptionInformation()))
 	{
 		Status = GetExceptionCode();
+
+#ifdef FAIL_ON_EXCEPTION
+		HARDERROR_RESPONSE Response;
+		BOOLEAN Enabled;
+		NTSTATUS St;
+
+		for (int i=5; i>0; i--)
+		{
+			KdPrint (("Waiting %2d seconds...\r", i));
+
+			LARGE_INTEGER second = {-1000*10000, -1};
+			ZwDelayExecution (FALSE, &second);
+		}
+
+		St = RtlAdjustPrivilege (
+			SE_SHUTDOWN_PRIVILEGE,
+			TRUE,
+			FALSE,
+			&Enabled
+			);
+
+		if (!NT_SUCCESS(St))
+			Print("RtlAdjustPrivilege failed with status %08x\n", St);
+		else
+		{
+			Print("ZwRaiseHardError failed...with status %08x\n",
+				ZwRaiseHardError (
+					Status,
+					1,
+					NULL,
+					(PVOID*) &Status,
+					OptionShutdownSystem,
+					&Response
+					));
+		}
+#endif
+
+#ifdef WAIT_N_SECONDS
+		for (int i=10; i>0; i--)
+		{
+			KdPrint (("Waiting %2d seconds...\r", i));
+
+			LARGE_INTEGER second = {-1000*10000, -1};
+			ZwDelayExecution (FALSE, &second);
+		}
+
+		KdPrint(("Loading Windows ...      \n"));
+#endif
 	}
-
-	KdPrint(("\n"));
-
-	for (int i=10; i>0; i--)
-	{
-		KdPrint (("Waiting %2d seconds...\r", i));
-
-		LARGE_INTEGER second = {-1000*10000, -1};
-		ZwDelayExecution (FALSE, &second);
-	}
-
-	KdPrint(("Loading Windows ...      \n"));
 
 	ZwTerminateProcess (NtCurrentProcess(), Status);
 }
@@ -239,6 +277,18 @@ CreateProcess(
 
 BOOLEAN
 NTAPI
+CreateThread(
+	HANDLE ProcessHandle,
+	BOOLEAN CreateSuspended,
+	PVOID StartAddress,
+	PVOID Parameter OPTIONAL,
+	PHANDLE ThreadHandle OPTIONAL,
+	PCLIENT_ID ClientId OPTIONAL
+	);
+
+
+BOOLEAN
+NTAPI
 CommandLineToArgv(
 	PSTR CommandLine,
 	int *pArgc,
@@ -252,3 +302,77 @@ CommandLineToArgvW(
 	int *pArgc,
 	PWSTR **pArgv
 	);
+
+VOID
+NTAPI
+SetLastStatus(
+	NTSTATUS Status
+	);
+
+NTSTATUS
+NTAPI
+GetLastStatus(
+	);
+
+NTSTATUS
+NTAPI
+WinPathToNtPath(
+	OUT PUNICODE_STRING NtPath,
+	IN PUNICODE_STRING WinPath
+	);
+
+NTSTATUS
+NTAPI
+AllocateUnicodeString(
+	OUT PUNICODE_STRING String,
+	IN USHORT MaximumLength
+	);
+
+VOID
+NTAPI
+GetCurrentDirectory(
+	OUT PUNICODE_STRING Path
+	);
+
+VOID
+NTAPI
+SetProcessHeap(
+	HANDLE hHeap
+	);
+
+HANDLE
+NTAPI
+GetProcessHeap(
+	);
+
+HANDLE
+NTAPI
+CreatePort(
+	PWSTR PortName OPTIONAL,
+	ULONG MaximumDataLength
+	);
+
+BOOLEAN
+NTAPI
+WaitReceivePort(
+	HANDLE hPort,
+	PLPC_MESSAGE Msg
+	);
+
+BOOLEAN
+NTAPI
+ReplyPort(
+	HANDLE hPort,
+	PLPC_MESSAGE Msg
+	);
+
+BOOLEAN
+NTAPI
+AcceptPort(
+	PLPC_MESSAGE Msg,
+	PHANDLE AcceptedHandle
+	);
+
+
+
+}
