@@ -3,7 +3,7 @@
 	ProjectType="Visual C++"
 	Version="9,00"
 	Name="psxlibc"
-	ProjectGUID="{9E6EA211-E2F4-41EB-B6DE-7A0DD673093C}"
+	ProjectGUID="{392D444E-63CE-4F17-B97C-12E075B5AF89}"
 	RootNamespace="psxlibc"
 	Keyword="Win32Proj"
 	TargetFrameworkVersion="196613"
