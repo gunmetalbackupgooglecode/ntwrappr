@@ -64,7 +64,7 @@ WriteFile (
 	ULONG Position
 	);
 
-VOID
+BOOLEAN
 NTAPI
 CloseHandle (
 	HANDLE hObject
@@ -153,6 +153,16 @@ PrintXY (
 	...
 	);
 
+BOOLEAN
+NTAPI
+MemoryEnterProtectedSection(
+    );
+
+VOID
+NTAPI
+MemoryLeaveProtectedSection(
+    );
+
 #ifdef SET_ENTRY
 NTSTATUS
 NTAPI
@@ -161,6 +171,9 @@ NativeEntry(
 	IN PUNICODE_STRING CommandLine
 	);
 
+#ifdef ENTRY_SPEC
+ENTRY_SPEC
+#endif
 VOID 
 NTAPI 
 EntryPoint(
@@ -173,8 +186,16 @@ EntryPoint(
 	{
 		if (InitializeWrapper ())
 		{
+            if (!MemoryEnterProtectedSection())
+            {
+                Print("MemoryEnterProtectedSection() failed\n");
+                Status = STATUS_UNSUCCESSFUL;
+            }
+
 			Status = NativeEntry (	&Startup->Environment->ImageFile,
 									&Startup->Environment->CommandLine );
+
+            MemoryLeaveProtectedSection ();
 		}
 	}
 	__except (ExceptionFilter(GetExceptionInformation()))
@@ -226,8 +247,8 @@ EntryPoint(
 			ZwDelayExecution (FALSE, &second);
 		}
 
-		KdPrint(("Loading Windows ...      \n"));
 #endif
+		KdPrint(("Loading Windows ...      \n"));
 	}
 
 	ZwTerminateProcess (NtCurrentProcess(), Status);
@@ -292,7 +313,7 @@ NTAPI
 CommandLineToArgv(
 	PSTR CommandLine,
 	int *pArgc,
-	PSTR **pArgv
+	PSTR *pArgv
 	);
 
 BOOLEAN
@@ -300,7 +321,7 @@ NTAPI
 CommandLineToArgvW(
 	PWSTR CommandLine,
 	int *pArgc,
-	PWSTR **pArgv
+	PWSTR *pArgv
 	);
 
 VOID
@@ -373,6 +394,18 @@ AcceptPort(
 	PHANDLE AcceptedHandle
 	);
 
+NTSTATUS
+NTAPI
+Sleep(
+    ULONG Milliseconds
+    );
 
+VOID
+NTAPI
+DisableExitOnEsc(
+    );
+
+int _cdecl str_replace_char (char *string, char ch1, char ch2);
+int _cdecl stri_replace_char (char *string, char ch1, char ch2);
 
 }

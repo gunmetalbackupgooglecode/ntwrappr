@@ -37,4 +37,7 @@ EXPORTS
 	WaitReceivePort
 	AcceptPort
 	ReplyPort
-	
+	Sleep
+	MemoryEnterProtectedSection
+	MemoryLeaveProtectedSection
+	DisableExitOnEsc
