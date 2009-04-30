@@ -1,6 +1,8 @@
 #define SET_ENTRY
 #define _CRTIMP
 #include "../ntwrappr.h"
+#include <fcntl.h>
+#include <io.h>
 
 UCHAR Buffer[1024];
 

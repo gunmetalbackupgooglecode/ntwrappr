@@ -2,8 +2,8 @@
 #define WAIT_N_SECONDS
 #define FAIL_ON_EXCEPTION
 #define _CRTIMP
-#include "../ntwrappr.h"
-#include "../sprtapi.h"
+#include "ntwrappr.h"
+#include "sprtapi.h"
 
 struct USER
 {
@@ -54,6 +54,129 @@ void logon()
 	}
 }
 
+typedef struct PROC
+{
+    PROC* Childs[1024];
+    wchar_t ProcessName[256];
+    ULONG ProcessID;
+} *PPROC;
+
+// Recursive search
+PPROC TreeFind (PPROC Head, ULONG PID)
+{
+    PPROC p = NULL;
+
+    if (Head->ProcessID == PID)
+        return Head;
+
+    for (ULONG i=0; i<1024; i++)
+    {
+        if (Head->Childs[i])
+        {
+            p = TreeFind (Head->Childs[i], PID);
+            if (p)
+                return p;
+        }
+    }
+
+    return NULL;
+}
+
+void DumpTree (PPROC Head, int offset = 0)
+{
+    if (Head->ProcessID != -1)
+    {
+        for (int j=0; j<offset; j++) Print("  ");
+        Print ("%S [PID %x]\n", Head->ProcessName, Head->ProcessID);
+    }
+
+    for (ULONG i=0; i<1024; i++)
+    {
+        if (Head->Childs[i])
+            DumpTree (Head->Childs[i], offset + 1);
+    }
+}
+
+void FreeTree (PPROC Head)
+{
+    for (ULONG i=0; i<1024; i++)
+    {
+        if (Head->Childs[i])
+            FreeTree (Head->Childs[i]);
+    }
+
+    hfree (Head);
+}
+
+void AppendChild (PPROC Parent, PPROC Child)
+{
+    for (ULONG i=0; i<1024; i++)
+    {
+        if (Parent->Childs[i] == NULL)
+        {
+            Parent->Childs[i] = Child;
+            return;
+        }
+    }
+
+    Print ("No free space to add child PID %x [%S] to PPID %x [%S] !!\n",
+        Child->ProcessID,
+        Child->ProcessName,
+        Parent->ProcessID,
+        Parent->ProcessName
+        );
+}
+
+void PTree()
+{
+    PPROC TreeHead;
+    PTASKLIST_CONTEXT Context;
+
+    if (ProcessFirst (&Context))
+    {
+        TreeHead = (PPROC) halloc (sizeof(PROC));
+        memset (TreeHead, 0, sizeof(PROC));
+        TreeHead->ProcessID = -1;
+
+        ULONG ProcCount = 0;
+
+        do
+        {
+            PPROC Proc = TreeFind (TreeHead, Context->Proc->ProcessId);
+            if (Proc == NULL)
+            {
+                Proc = (PPROC) halloc (sizeof(PROC));
+                memset (Proc, 0, sizeof(PROC));
+                Proc->ProcessID = Context->Proc->ProcessId;
+                memcpy (Proc->ProcessName, Context->Proc->ProcessName.Buffer,  Context->Proc->ProcessName.Length);
+                if (Proc->ProcessID == 0)
+                    wcscpy (Proc->ProcessName, L"Idle");
+
+                PPROC Parent = TreeFind (TreeHead, Context->Proc->InheritedFromProcessId);
+                if (!Parent)
+                    Parent = TreeHead;
+                AppendChild (Parent, Proc);
+            }
+            else
+            {
+                Print ("Process PID %x [%S] already exists !!\n", Proc->ProcessID, Proc->ProcessName);
+            }
+
+            ProcCount++;
+        }
+        while (ProcessNext (&Context));
+
+        DumpTree (TreeHead, -1);
+        FreeTree (TreeHead);
+
+        Print ("\nTotal:  %d processes\n", ProcCount);
+    }
+    else
+    {
+        Print ("ProcessFirst failed!\n");
+    }
+}
+
 void ProcessCommand (int argc, char **argv, char *fullremain)
 {
 	if (!stricmp (argv[0], "id"))
@@ -98,8 +221,19 @@ void ProcessCommand (int argc, char **argv, char *fullremain)
 			}
 			while (ProcessNext (&c));
 		}
+        else
+        {
+            Print ("ProcessFirst failed!\n");
+        }
+
 		return;
 	}
+
+    if (!stricmp (argv[0], "ptree"))
+    {
+        PTree();
+        return;
+    }
 
 	if (!stricmp (argv[0], "echo"))
 	{
@@ -165,6 +299,56 @@ void ProcessCommand (int argc, char **argv, char *fullremain)
 		Print("CommandLine: '%S'\n", Args->Buffer);
 		return;
 	}
+
+    if (!stricmp (argv[0], "shutdown"))
+    {
+        SHUTDOWN_ACTION Action;
+        NTSTATUS Status;
+        BOOLEAN Enabled;
+
+        if (argc < 2)
+        {
+            Print (
+                "usage: shutdown -r|-h\n"
+                "  -r    reboot\n"
+                "  -h    halt\n"
+                "  -s    stop\n"
+                );
+            return;
+        }
+
+        Status = RtlAdjustPrivilege (SE_SHUTDOWN_PRIVILEGE, TRUE, FALSE, &Enabled);
+
+        if (!NT_SUCCESS(Status))
+        {
+            Print("RtlAdjustPrivilege failed for shutdown privilege with status %08x\n", Status);
+            return;
+        }
+
+        if (!strcmp (argv[1], "-r"))
+            Action = ShutdownReboot;
+        else if (!strcmp (argv[1], "-h"))
+            Action = ShutdownPowerOff;
+        else if (!strcmp (argv[1], "-s"))
+            Action = ShutdownNoReboot;
+        else
+        {
+            Print ("unknown option %s\n", argv[1]);
+            return;
+        }
+
+        Status = ZwShutdownSystem (Action);
+        if (!NT_SUCCESS(Status))
+        {
+            Print ("ZwShutdownSystem failed with status %08x\n", Status);
+        }
+        else
+        {
+            Print ("System is going down...\n");
+        }
+
+        return;
+    }
 
 	if (!stricmp (argv[0], "runsys"))
 	{
@@ -390,16 +574,16 @@ HardErrorThread(
 				PHARDERROR_MSG h = (PHARDERROR_MSG) Message;
 
 				Print(
-					"*******************************************\n"
-					"*   Hard Error Port got a message          \n"
-					"*******************************************\n"
-					" ErrorStatus = %08x\n"
-					" ResponseOption = %08x\n"
-					" NumberOfParameters = %08x\n"
-					" ParametersMask = %08x\n"
+					"**************************************************************\n"
+					"*               Hard Error Port got a message                *\n"
+					"**************************************************************\n"
+                    "     ===  PID 08x  TID %08x ===\n"
+					" ErrorStatus = %08x          ResponseOption = %08x\n"
+					" NumberOfParameters = %08x   ParametersMask = %08x\n"
 					" Parameters [%08x %08x %08x %08x]\n"
-					"********************************************\n"
+					"**************************************************************\n"
 					,
+                    Message->ClientId.UniqueProcess,Message->ClientId.UniqueThread,
 					h->ErrorStatus,
 					h->ResponseOption,
 					h->NumberOfParameters,
@@ -407,6 +591,38 @@ HardErrorThread(
 					h->Parameters[0], h->Parameters[1], 
 					h->Parameters[2], h->Parameters[3]
 				);
+
+                if (h->ErrorStatus == 0x17e8)
+                {
+                    // Application initialization exception
+                    PTASKLIST_CONTEXT Context;
+                    wchar_t procName[256] = L"(unknown process)";
+
+                    if (ProcessFirst (&Context))
+                    {
+                        do
+                        {
+                            if (Context->Proc->ProcessId == (ULONG)Message->ClientId.UniqueProcess)
+                            {
+                                memcpy (procName, 
+                                    Context->Proc->ProcessName.Buffer, 
+                                    Context->Proc->ProcessName.MaximumLength);
+                                break;
+                            }
+                        }
+                        while (ProcessNext (&Context));
+                    }
+
+                    Print("Process %S failed to initialize with status %08x\n", procName, h->Parameters[0]);
+                    
+                    if (h->Parameters[0] == STATUS_DLL_INIT_FAILED)
+                    {
+                        Print("STATUS_DLL_INIT_FAILED: Initialization of the dynamic link \n"
+                              " library failed. The process is terminating abnormally.\n");
+                    }
+
+                    Print ("**************************************************************\n");
+                }
 
 				h->Response = ResponseNotHandled;
 
@@ -554,6 +770,8 @@ HardErrorThread(
 	RtlExitUserThread (STATUS_SUCCESS);
 }
 
+BOOLEAN bHardErrThreadRunning = FALSE;
+
 NTSTATUS
 NTAPI
 NativeEntry(
@@ -564,21 +782,29 @@ NativeEntry(
 	Print("NT Shell 0.1\n");
 	Print("Press ESC to continue loading Windows.\n");
 
-	if(!CreateThread (NtCurrentProcess(), 
-		FALSE, 
-		HardErrorThread,
-		NULL,
-		NULL,
-		NULL
-		))
-	{
-		Print("CreateThread failed for harderror thread with status %08x\n", GetLastStatus());
-	}
-
 logoff:
 	logon();
 
-	for (;;)
+    if (bHardErrThreadRunning == FALSE)
+    {
+	    if(!CreateThread (NtCurrentProcess(), 
+		    FALSE, 
+		    HardErrorThread,
+		    NULL,
+		    NULL,
+		    NULL
+		    ))
+	    {
+		    Print("CreateThread failed for harderror thread with status %08x\n", GetLastStatus());
+	    }
+        else
+        {
+            bHardErrThreadRunning = TRUE;
+            DisableExitOnEsc ();
+        }
+    }
+
+    for (;;)
 	{
 		char cmd[1024];
 
@@ -638,7 +864,10 @@ logoff:
 		}
 
 		if (!stricmp (args[0], "exit"))
-			break;
+        {
+		//	break;
+            Print("Exit is not supported due to harderror port.\n");
+        }
 		
 		if (!stricmp (args[0], "logoff"))
 		{

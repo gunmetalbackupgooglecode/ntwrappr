@@ -7,7 +7,7 @@
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
 AppId={{6033E76D-15C5-482B-8042-4C05D1C9E542}
 AppName=NT Wrapper
-AppVerName=NT Wrapper 0.1
+AppVerName=NT Wrapper 0.2
 AppPublisher=Great
 AppPublisherURL=http://code.google.com/p/ntwrappr
 AppSupportURL=http://code.google.com/p/ntwrappr
@@ -24,7 +24,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Source: "D:\Progs\ntsystem\bin\native.exe"; DestDir: "{win}\System32"; Flags: ignoreversion
 Source: "D:\Progs\ntsystem\bin\ntwrappr.dll"; DestDir: "{win}\System32"; Flags: ignoreversion
 Source: "D:\Progs\ntsystem\bin\ntshell.exe"; DestDir: "{win}\System32"; Flags: ignoreversion
-Source: "D:\Progs\ntsystem\bin\cat.exe"; DestDir: "{win}\System32"; Flags: ignoreversion
+Source: "D:\Progs\ntsystem\bin\psxtest.exe"; DestDir: "{win}\System32"; Flags: ignoreversion
+Source: "D:\Progs\ntsystem\bin\psxss.dll"; DestDir: "{win}\System32"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Registry]

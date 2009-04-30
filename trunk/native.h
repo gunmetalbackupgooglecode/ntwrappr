@@ -54,6 +54,7 @@ NtDelayExecution(
   IN PLARGE_INTEGER       DelayInterval );
 
 VOID
+NTAPI
 RtlRaiseStatus(
   IN NTSTATUS             Status );
 
@@ -923,5 +924,17 @@ NTSTATUS
 NTAPI
 ZwSetDefaultHardErrorPort(
   IN HANDLE               PortHandle );
+
+typedef enum _SHUTDOWN_ACTION {
+    ShutdownNoReboot, 
+    ShutdownReboot, 
+    ShutdownPowerOff
+} SHUTDOWN_ACTION, *PSHUTDOWN_ACTION;
+
+NTSYSAPI 
+NTSTATUS
+NTAPI
+ZwShutdownSystem(
+    IN SHUTDOWN_ACTION Action ); 
 
 }

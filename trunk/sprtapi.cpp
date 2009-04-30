@@ -2,7 +2,7 @@
 
 #define toupper(x) (((x) >= 'a' && (x) <= 'z') ? ((x) + 'A' - 'a') : (x))
 
-char *strdup (char* s)
+char* _cdecl strdup (char* s)
 {
 	char *dst = (char*)halloc (strlen(s)+1);
 	if (dst)
@@ -12,7 +12,7 @@ char *strdup (char* s)
 	return dst;
 }
 
-int str_replace_char (char *string, char ch1, char ch2)
+int _cdecl str_replace_char (char *string, char ch1, char ch2)
 {
 	int count = 0;
 
@@ -28,7 +28,7 @@ int str_replace_char (char *string, char ch1, char ch2)
 	return count;
 }
 
-int stri_replace_char (char *string, char ch1, char ch2)
+int _cdecl stri_replace_char (char *string, char ch1, char ch2)
 {
 	int count = 0;
 
