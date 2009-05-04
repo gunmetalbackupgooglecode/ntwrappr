@@ -1,6 +1,6 @@
 EXPORTS
 	open
-	printf = Print
+	printf = ntwrappr.Print
 	read
 	close
 	
