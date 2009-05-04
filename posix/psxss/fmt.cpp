@@ -4,7 +4,7 @@
 #include <stdarg.h>
 
 /*
-int _cdecl __printf (const char *format, ...)
+int _cdecl printf (const char *format, ...)
 {
     char buffer[1024];
     int s;
@@ -12,6 +12,6 @@ int _cdecl __printf (const char *format, ...)
     va_start (va, format);
 
     s = _vsnprintf (buffer, sizeof(buffer)-1, format, va);
-    Print (buffer);
+    return (int) Print (buffer);
 }
 */

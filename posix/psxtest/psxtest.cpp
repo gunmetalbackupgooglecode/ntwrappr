@@ -6,7 +6,7 @@ int main()
 {
     int fd, s;
     char buffer[128];
-    char *fname = "/global/c:/windows/win.ini";
+    char *fname = "/glob/c:/windows/win.ini";
 
     printf ("fname = %s\n", fname);
 

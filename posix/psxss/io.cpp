@@ -100,6 +100,11 @@ int __cdecl open(const char * fname, int mode, ...)
 
         RtlFreeUnicodeString (&us);
 
+        if (hFile == NULL)
+        {
+            return -1;
+        }
+
         return (int)hFile;
     }
 
