@@ -31,5 +31,8 @@ int main()
     }
     else printf("could not open %s\n", fname);
 
+    write (1, "completed\n", 10);
+    write (2, "stderr\n", 7);
+
     return 0;
 }

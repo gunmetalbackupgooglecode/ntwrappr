@@ -138,6 +138,31 @@ int main()
     // ACTION
     //
 
+    FILE *fp = fopen("c:\\boot.ini", "rb");
+    if (fp)
+    {
+        char buffer[1000];
+        size_t items = fread (buffer, 10, 100, fp);
+
+        printf("%d items read\n", items);
+
+        fclose (fp);
+    }
+
+    fp = fdopen (1, "w");
+    if (fp)
+    {
+        size_t items;
+
+        items = fwrite ("hello\n", 6, 1, fp);
+
+        fclose (fp);
+    }
+
+    Sleep (-1);
+
+    /////
+
     if (!MemoryEnterProtectedSection ())
         return printf("MemoryEnterProtectedSection failed\n");
 

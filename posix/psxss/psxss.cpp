@@ -1,6 +1,8 @@
 #define _CRTIMP
 #include "ntwrappr.h"
 
+int _cdecl _io_init();
+
 BOOLEAN NTAPI NativeEntry (PVOID Base, ULONG Reason, PVOID Unknown)
 {
 	if (Reason == 1)
@@ -21,6 +23,8 @@ BOOLEAN NTAPI NativeEntry (PVOID Base, ULONG Reason, PVOID Unknown)
 
 		if (!NT_SUCCESS(Status))
 			Print("ZwProtectVirtualMemory = %08x\n", Status);
+
+        _io_init ();
 	}
 
 	return TRUE;

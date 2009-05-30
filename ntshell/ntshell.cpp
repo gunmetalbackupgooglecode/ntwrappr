@@ -3,6 +3,7 @@
 #define FAIL_ON_EXCEPTION
 #define _CRTIMP
 #include "ntwrappr.h"
+#include "pe_image.h"
 #include "sprtapi.h"
 
 struct USER
@@ -177,6 +178,43 @@ void PTree()
     }
 }
 
+PHANDLE
+FindCsrPortHandle(
+    )
+{
+    PVOID CsrClientCallServer = (PVOID) GetProcedureAddress (FindDll (L"ntdll.dll"), "CsrClientCallServer");
+    ULONG_PTR ZwRequestWaitReplyPort = (ULONG_PTR) GetProcedureAddress (FindDll (L"ntdll.dll"), "ZwRequestWaitReplyPort");
+    
+    if (CsrClientCallServer)
+    {
+        for (PUCHAR p = (PUCHAR)CsrClientCallServer; p < (PUCHAR)CsrClientCallServer + 0x1000; p++)
+        {
+            if (
+                // PUSH DWORD PTR DS:[CsrPortHandle]
+                p[0] == 0xFF &&
+                p[1] == 0x35 &&
+                // 2,3,4,5 - port handle
+
+                // CALL ZwRequestWaitReplyPort
+                p[6] == 0xE8
+                // 7,8,9,10 - call arg
+                )
+            {
+                ULONG_PTR CallArg = (ULONG_PTR)&p[11] + *(ULONG_PTR*)&p[7];
+                PHANDLE CsrPortHandle = *(PHANDLE*)&p[2];
+
+                if (CallArg == ZwRequestWaitReplyPort)
+                {
+                    Print("CsrPortHandle found %p : %lx\n", CsrPortHandle, *CsrPortHandle);
+                    return CsrPortHandle;
+                }
+            }
+        }
+    }
+
+    return NULL;
+}
+
 void ProcessCommand (int argc, char **argv, char *fullremain)
 {
 	if (!stricmp (argv[0], "id"))
@@ -240,6 +278,82 @@ void ProcessCommand (int argc, char **argv, char *fullremain)
 		Print("%s\n", fullremain);
 		return;
 	}
+
+    if (!stricmp (argv[0], "csrport"))
+    {
+        PHANDLE CsrPortHandle;
+
+        CsrPortHandle = FindCsrPortHandle ();
+     
+        return;
+    }
+
+    if (!stricmp (argv[0], "patchpeb"))
+    {
+        PPEB Peb = NtCurrentPeb ();
+        PIMAGE_NT_HEADERS NtHeaders = (PIMAGE_NT_HEADERS) RtlImageNtHeader (Peb->ImageBaseAddress);
+
+        NtHeaders->OptionalHeader.Subsystem = IMAGE_SUBSYSTEM_WINDOWS_CUI;
+
+        Print("patched\n");
+
+        return;
+    }
+
+    if (!stricmp (argv[0], "load"))
+    {
+		UNICODE_STRING us;
+		ANSI_STRING as;
+		NTSTATUS st;
+        char *dllname = "C:\\Windows\\System32\\kernel32.dll";
+        ULONG Chars = 0;
+
+		if (argc == 2)
+		{
+            if (argv[1][0] == '-')
+            {
+                if (argv[1][1] == 'r')
+                {
+                    Chars = IMAGE_FILE_EXECUTABLE_IMAGE;
+                }
+            }
+            else
+            {
+                dllname = argv[1];
+            }
+		}
+
+        if (argc == 3)
+        {
+            if (argv[2][0] == '-')
+            {
+                if (argv[2][1] == 'r')
+                {
+                    Chars = IMAGE_FILE_EXECUTABLE_IMAGE;
+                }
+            }
+        }
+
+        RtlInitAnsiString (&as, dllname);
+		st = RtlAnsiStringToUnicodeString (&us, &as, TRUE);
+
+		if (NT_SUCCESS(st))
+		{
+			Print("Loading '%S' (%lx) ...\n", us.Buffer, Chars);
+
+			PVOID hDll = LoadDll (us.Buffer, Chars);
+
+            Print("hDll = %p, LastStatus = %lx\n", hDll, GetLastStatus());
+
+			RtlFreeUnicodeString (&us);
+		}
+		else
+		{
+			Print("RtlAnsiStringToUnicodeString failed with status %08x\n", st);
+		}
+
+        return;
+    }
 
 	if (!stricmp (argv[0], "run"))
 	{
