@@ -388,10 +388,14 @@ ReadFile (
 
 	if (Status != STATUS_END_OF_FILE)
 	{
+        KdPrint (("hFile %x hEvent %x Buffer %p MaxLen %x Pos %x\n",
+            hFile, hEvent, Buffer, MaxLen, Position));
 		KdPrint (("ZwReadFile failed with status %08x\n", Status));
+		ZwClose (hEvent);
 		return -1;
 	}
 	
+	ZwClose (hEvent);
 	return -2;
 }
 
@@ -399,7 +403,7 @@ ULONG
 NTAPI
 WriteFile (
 	HANDLE hFile, 
-	PVOID Buffer, 
+	PCVOID Buffer, 
 	ULONG Length, 
 	ULONG Position
 	)
@@ -435,7 +439,7 @@ WriteFile (
 		NULL,
 		NULL,
 		&IoStatus,
-		Buffer,
+		(PVOID) Buffer,
 		Length,
 		Position == -1 ? NULL : &Pos,
 		NULL );
@@ -1506,3 +1510,88 @@ Sleep(
     return ZwDelayExecution (FALSE, NULL);
 }
 #endif
+
+PVOID
+NTAPI
+LoadDll(
+    PWSTR ImagePath,
+    ULONG Chars
+    )
+{
+    UNICODE_STRING ImagePathString;
+    NTSTATUS Status;
+    PVOID ModuleHandle;
+    ULONG DllCharacteristics = Chars;
+
+    RtlInitUnicodeString (&ImagePathString, ImagePath);
+    Status = LdrLoadDll (NULL, &DllCharacteristics, &ImagePathString, &ModuleHandle);
+
+    SetLastStatus (Status);
+    if (!NT_SUCCESS(Status))
+    {
+        ModuleHandle = NULL;
+    }
+
+    return ModuleHandle;
+}
+
+PVOID
+NTAPI
+FindDll(
+    PWSTR ImagePath
+    )
+{
+    UNICODE_STRING ImagePathString;
+    NTSTATUS Status;
+    PVOID ModuleHandle;
+    ULONG DllCharacteristics;
+
+    RtlInitUnicodeString (&ImagePathString, ImagePath);
+    Status = LdrGetDllHandle (NULL, &DllCharacteristics, &ImagePathString, &ModuleHandle);
+
+    SetLastStatus (Status);
+    if (!NT_SUCCESS(Status))
+    {
+        ModuleHandle = NULL;
+    }
+
+    return ModuleHandle;
+}
+
+PVOID
+NTAPI
+GetProcedureAddress(
+    PVOID ImageBase,
+    PCHAR ProcedureName
+    )
+{
+    PVOID ProcAddress;
+    ANSI_STRING ProcedureNameString;
+    PANSI_STRING pProcString = NULL;
+    ULONG Ordinal = 0;
+    NTSTATUS Status;
+
+    if ((ULONG_PTR)ProcedureName & 0xFFFF0000)
+    {
+        RtlInitAnsiString (&ProcedureNameString, ProcedureName);
+        pProcString = &ProcedureNameString;
+    }
+    else
+    {
+        Ordinal = (ULONG) ProcedureName;
+    }
+
+    Status = LdrGetProcedureAddress (ImageBase,
+        pProcString,
+        Ordinal,
+        &ProcAddress);
+
+    SetLastStatus (Status);
+
+    if (!NT_SUCCESS(Status))
+    {
+        ProcAddress = NULL;
+    }
+
+    return ProcAddress;
+}

@@ -55,11 +55,13 @@ ReadFile (
 	ULONG Position
 	);
 
+typedef const void *PCVOID;
+
 ULONG 
 NTAPI
 WriteFile (
 	HANDLE hFile, 
-	PVOID Buffer, 
+	PCVOID Buffer, 
 	ULONG Length, 
 	ULONG Position
 	);
@@ -404,6 +406,27 @@ VOID
 NTAPI
 DisableExitOnEsc(
     );
+
+PVOID
+NTAPI
+LoadDll(
+    PWSTR ImagePath,
+    ULONG Chars
+    );
+
+PVOID
+NTAPI
+FindDll(
+    PWSTR ImagePath
+    );
+
+PVOID
+NTAPI
+GetProcedureAddress(
+    PVOID ImageBase,
+    PCHAR ProcedureName
+    );
+
 
 int _cdecl str_replace_char (char *string, char ch1, char ch2);
 int _cdecl stri_replace_char (char *string, char ch1, char ch2);

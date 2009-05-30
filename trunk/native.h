@@ -239,9 +239,28 @@ NTSTATUS
 NTAPI
 LdrLoadDll(
   IN PWCHAR               PathToFile OPTIONAL,
-  IN ULONG                Flags OPTIONAL,
+  IN PULONG               DllCharacteristics OPTIONAL,
   IN PUNICODE_STRING      ModuleFileName,
-  OUT PHANDLE             ModuleHandle );
+  OUT PVOID              *ModuleHandle );
+
+NTSYSAPI 
+NTSTATUS
+NTAPI
+LdrGetDllHandle(
+  IN PWCHAR               PathToFile OPTIONAL,
+  IN PULONG               DllCharacteristics OPTIONAL,
+  IN PUNICODE_STRING      ModuleFileName,
+  OUT PVOID              *ModuleHandle );
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+LdrGetProcedureAddress (
+    IN PVOID DllHandle,
+    IN PANSI_STRING ProcedureName OPTIONAL,
+    IN ULONG ProcedureNumber OPTIONAL,
+    OUT PVOID *ProcedureAddress
+    );
 
 typedef struct {
 	ULONG Unknown[21];
@@ -384,6 +403,11 @@ inline __declspec(naked) PTEB NtCurrentTeb ()
 		mov eax, fs:[0x18]
 		retn
 	}
+}
+
+inline PPEB NtCurrentPeb ()
+{
+	return NtCurrentTeb()->Peb;
 }
 
 typedef struct _PEB {
@@ -746,7 +770,7 @@ NTAPI
 RtlGetLastWin32Error(
 	);
 
-int _cdecl atoi( char* );
+int _cdecl atoi( const char* );
 
 NTSYSAPI
 USHORT

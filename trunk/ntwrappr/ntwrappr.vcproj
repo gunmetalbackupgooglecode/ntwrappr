@@ -4,6 +4,7 @@
 	Version="9,00"
 	Name="ntwrappr"
 	ProjectGUID="{27A67058-A316-408D-BA5D-BFA39D24448F}"
+	RootNamespace="ntwrappr"
 	TargetFrameworkVersion="131072"
 	>
 	<Platforms>
@@ -238,6 +239,10 @@
 		</File>
 		<File
 			RelativePath="..\ntwrappr.h"
+			>
+		</File>
+		<File
+			RelativePath="..\pe_image.h"
 			>
 		</File>
 		<File

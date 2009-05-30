@@ -41,3 +41,7 @@ EXPORTS
 	MemoryEnterProtectedSection
 	MemoryLeaveProtectedSection
 	DisableExitOnEsc
+	LoadDll
+	FindDll
+	GetProcedureAddress
+	

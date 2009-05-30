@@ -2,5 +2,16 @@ EXPORTS
 	open
 	printf = ntwrappr.Print
 	read
+	write
 	close
+	
+	malloc = ntwrappr.halloc
+	free = ntwrappr.hfree
+	
+	fopen
+	fclose
+	fread
+	fwrite
+	fileno
+	fdopen
 	
