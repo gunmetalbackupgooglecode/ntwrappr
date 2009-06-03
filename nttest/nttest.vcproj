@@ -173,6 +173,14 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
+				RelativePath="..\ntwrappr\console.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\ntwrappr\files.cpp"
+				>
+			</File>
+			<File
 				RelativePath="..\posix\psxss\fmt.cpp"
 				>
 			</File>
@@ -181,7 +189,7 @@
 				>
 			</File>
 			<File
-				RelativePath="..\ntwrappr.cpp"
+				RelativePath="..\ntwrappr\ntwrappr.cpp"
 				>
 			</File>
 		</Filter>

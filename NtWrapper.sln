@@ -28,6 +28,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "nttest", "nttest\nttest.vcp
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "psxlibc", "posix\psxlibc\psxlibc.vcproj", "{392D444E-63CE-4F17-B97C-12E075B5AF89}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ntconss", "ntconss\ntconss.vcproj", "{62C204A9-DC35-425A-9D5D-48DF0DB4411A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -62,6 +64,10 @@ Global
 		{392D444E-63CE-4F17-B97C-12E075B5AF89}.Debug|Win32.Build.0 = Debug|Win32
 		{392D444E-63CE-4F17-B97C-12E075B5AF89}.Release|Win32.ActiveCfg = Release|Win32
 		{392D444E-63CE-4F17-B97C-12E075B5AF89}.Release|Win32.Build.0 = Release|Win32
+		{62C204A9-DC35-425A-9D5D-48DF0DB4411A}.Debug|Win32.ActiveCfg = Debug|Win32
+		{62C204A9-DC35-425A-9D5D-48DF0DB4411A}.Debug|Win32.Build.0 = Debug|Win32
+		{62C204A9-DC35-425A-9D5D-48DF0DB4411A}.Release|Win32.ActiveCfg = Release|Win32
+		{62C204A9-DC35-425A-9D5D-48DF0DB4411A}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

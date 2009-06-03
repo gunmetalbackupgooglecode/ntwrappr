@@ -262,18 +262,6 @@ LdrGetProcedureAddress (
     OUT PVOID *ProcedureAddress
     );
 
-typedef struct {
-	ULONG Unknown[21];
-	UNICODE_STRING CommandLine;
-	UNICODE_STRING ImageFile;
-} ENVIRONMENT_INFORMATION, *PENVIRONMENT_INFORMATION;
-
-typedef struct {
-	ULONG Unknown[2];
-	PVOID ImageBase;
-	PENVIRONMENT_INFORMATION Environment;
-} STARTUP_ARGUMENT, *PSTARTUP_ARGUMENT;
-
 typedef struct _RTL_DRIVE_LETTER_CURDIR {
   USHORT                  Flags;
   USHORT                  Length;
@@ -312,6 +300,12 @@ typedef struct _RTL_USER_PROCESS_PARAMETERS {
   UNICODE_STRING          RuntimeData;
   RTL_DRIVE_LETTER_CURDIR DLCurrentDirectory[0x20];
 } RTL_USER_PROCESS_PARAMETERS, *PRTL_USER_PROCESS_PARAMETERS;
+
+VOID
+NTAPI
+RtlNormalizeProcessParams(
+    PRTL_USER_PROCESS_PARAMETERS ProcessParameters
+    );
 
 typedef struct _RTL_USER_PROCESS_INFORMATION {
   ULONG                   Size;

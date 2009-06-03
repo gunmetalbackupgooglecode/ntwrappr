@@ -4,7 +4,10 @@
 #define _CRTIMP
 #include "ntwrappr.h"
 #include "pe_image.h"
-#include "sprtapi.h"
+
+
+HANDLE hSuccessfulLogonEvent;
+HANDLE hReturnToWindowsEvent;
 
 struct USER
 {
@@ -178,42 +181,108 @@ void PTree()
     }
 }
 
-PHANDLE
-FindCsrPortHandle(
-    )
+
+
+struct THREAD_INFO
 {
-    PVOID CsrClientCallServer = (PVOID) GetProcedureAddress (FindDll (L"ntdll.dll"), "CsrClientCallServer");
-    ULONG_PTR ZwRequestWaitReplyPort = (ULONG_PTR) GetProcedureAddress (FindDll (L"ntdll.dll"), "ZwRequestWaitReplyPort");
-    
-    if (CsrClientCallServer)
+    HANDLE hThread;
+    CLIENT_ID id;
+};
+
+struct CSRSS_MESSAGE
+{
+    ULONG Unknown1;
+    ULONG Opcode;
+    ULONG Status;
+    ULONG Unknown2;
+};
+
+/*
+struct PORT_MESSAGE
+{
+    ULONG u1;
+    ULONG u2;
+
+    union
     {
-        for (PUCHAR p = (PUCHAR)CsrClientCallServer; p < (PUCHAR)CsrClientCallServer + 0x1000; p++)
-        {
-            if (
-                // PUSH DWORD PTR DS:[CsrPortHandle]
-                p[0] == 0xFF &&
-                p[1] == 0x35 &&
-                // 2,3,4,5 - port handle
+        CLIENT_ID ClientId;
+        float DoNotUseThisField;
+    };
 
-                // CALL ZwRequestWaitReplyPort
-                p[6] == 0xE8
-                // 7,8,9,10 - call arg
-                )
-            {
-                ULONG_PTR CallArg = (ULONG_PTR)&p[11] + *(ULONG_PTR*)&p[7];
-                PHANDLE CsrPortHandle = *(PHANDLE*)&p[2];
+    ULONG MessageId;
 
-                if (CallArg == ZwRequestWaitReplyPort)
-                {
-                    Print("CsrPortHandle found %p : %lx\n", CsrPortHandle, *CsrPortHandle);
-                    return CsrPortHandle;
-                }
-            }
-        }
+    union
+    {
+        ULONG ClientViewSize;
+        ULONG CallbackId;
+    };
+};
+*/
+
+extern "C"
+NTSTATUS
+NTAPI
+CsrClientCallServer (
+    PVOID CsrMsg,
+    ULONG Something,
+    ULONG ApiNumber,
+    ULONG MessageSize
+    );
+
+VOID SelfNotifyCsrss()
+{
+    NTSTATUS Status;
+    HANDLE hThread = 0;
+    CLIENT_ID ClientId;
+    OBJECT_ATTRIBUTES Oa;
+
+    ClientId = NtCurrentTeb()->Cid;
+    
+    InitializeObjectAttributes (&Oa, 0, 0, 0, 0);
+    Status = ZwOpenThread (&hThread,
+        THREAD_ALL_ACCESS,
+        &Oa,
+        &ClientId
+        );
+
+    Print ("ZwOpenThread = %lx, hThread = %lx\n", Status, hThread);
+
+    struct
+    {
+        PORT_MESSAGE    PortMessage;
+        CSRSS_MESSAGE    CsrssMessage;
+        THREAD_INFO        ThreadInfo;
     }
+    csrmsg = {
+        {0},
+        {0},
+        {hThread, ClientId}};
 
-    return NULL;
+    Status = CsrClientCallServer ( 
+        &csrmsg,
+        0,
+        0x10001,
+        0x0C);
+
+    Print ("CsrClientCallServer = %lx\n", Status);
+    Print ("Status = %lx\n", csrmsg.CsrssMessage.Status);
 }
+
+
+
+char *DbgStates[] = {
+    "DbgIdle",
+    "DbgReplyPending",
+    "DbgCreateThreadStateChange",
+    "DbgCreateProcessStateChange",
+    "DbgExitThreadStateChange",
+    "DbgExitProcessStateChange",
+    "DbgExceptionStateChange",
+    "DbgBreakpointStateChange",
+    "DbgSingleStepStateChange",
+    "DbgLoadDllStateChange",
+    "DbgUnloadDllStateChange"
+};
 
 void ProcessCommand (int argc, char **argv, char *fullremain)
 {
@@ -279,12 +348,10 @@ void ProcessCommand (int argc, char **argv, char *fullremain)
 		return;
 	}
 
-    if (!stricmp (argv[0], "csrport"))
+    if (!stricmp (argv[0], "testport"))
     {
-        PHANDLE CsrPortHandle;
+        SelfNotifyCsrss();
 
-        CsrPortHandle = FindCsrPortHandle ();
-     
         return;
     }
 
@@ -292,8 +359,35 @@ void ProcessCommand (int argc, char **argv, char *fullremain)
     {
         PPEB Peb = NtCurrentPeb ();
         PIMAGE_NT_HEADERS NtHeaders = (PIMAGE_NT_HEADERS) RtlImageNtHeader (Peb->ImageBaseAddress);
+		ULONG OldProtect;
+		NTSTATUS Status;
+        PVOID VirtualAddress = NtHeaders;
+        SIZE_T VirtualSize = FIELD_OFFSET (IMAGE_NT_HEADERS, OptionalHeader.Subsystem);
 
-        NtHeaders->OptionalHeader.Subsystem = IMAGE_SUBSYSTEM_WINDOWS_CUI;
+		Status = ZwProtectVirtualMemory (
+			NtCurrentProcess(),
+			&VirtualAddress,
+			&VirtualSize,
+			PAGE_READWRITE,
+			&OldProtect
+			);
+
+        KdPrint(("ZwProtectVirtualMemory %lx\n", Status));
+
+        if (NT_SUCCESS(Status))
+        {
+            NtHeaders->OptionalHeader.Subsystem = IMAGE_SUBSYSTEM_WINDOWS_CUI;
+
+		    Status = ZwProtectVirtualMemory (
+			    NtCurrentProcess(),
+			    &VirtualAddress,
+			    &VirtualSize,
+			    OldProtect,
+			    &OldProtect
+			    );
+
+            KdPrint(("ZwProtectVirtualMemory %lx\n", Status));
+        }
 
         Print("patched\n");
 
@@ -384,7 +478,7 @@ void ProcessCommand (int argc, char **argv, char *fullremain)
 		{
 			Print("Starting '%S' ...\n", us.Buffer);
 
-			BOOLEAN b = CreateProcess (us.Buffer, L"Command Line", &ClientId, Wait);
+			BOOLEAN b = CreateProcess (us.Buffer, L"Command Line", &ClientId, Wait, FALSE, NULL);
 
 			if (b)
 			{
@@ -473,10 +567,11 @@ void ProcessCommand (int argc, char **argv, char *fullremain)
 		CLIENT_ID ClientId;
 		wchar_t Buffer[1024] = L"\\SystemRoot\\System32\\";
 		BOOLEAN Wait = FALSE;
+        BOOLEAN Debug = FALSE;
 
 		if (argc < 2)
 		{
-			Print("usage: runsys <CMD> [wait]\n");
+			Print("usage: runsys <CMD> [wait] [debug]\n");
 			return;
 		}
 
@@ -484,9 +579,18 @@ void ProcessCommand (int argc, char **argv, char *fullremain)
 		{
 			if (!stricmp (argv[2], "wait"))
 				Wait = TRUE;
-		}
 
-		Print("Wait = %s\n", Wait ? "true" : "false");
+			if (!stricmp (argv[2], "debug"))
+				Debug = TRUE;
+        }
+        
+        if (argc == 4)
+        {
+			if (!stricmp (argv[3], "wait"))
+				Debug = TRUE;
+        }
+
+		Print("Wait = %d, Debug = %d\n", Wait, Debug);
 
 		RtlInitAnsiString (&as, argv[1]);
 		st = RtlAnsiStringToUnicodeString (&us, &as, TRUE);
@@ -500,11 +604,57 @@ void ProcessCommand (int argc, char **argv, char *fullremain)
 
 			Print("Starting '%S' ...\n", ImagePath.Buffer);
 
-			BOOLEAN b = CreateProcess (ImagePath.Buffer, L"Command Line", &ClientId, Wait);
+            RTL_USER_PROCESS_INFORMATION Info;
+			BOOLEAN b = CreateProcess (ImagePath.Buffer, L"Command Line", &ClientId, Wait, Debug, &Info);
 
 			if (b)
 			{
 				Print("Started, PID %x TID %x\n", ClientId.UniqueProcess, ClientId.UniqueThread);
+
+                if (Debug)
+                {
+                    do
+                    {
+                        st = DbgUiConnectToDbg ();
+                        Print ("DbgUiConnectToDbg = %lx\n", st);
+                        if (!NT_SUCCESS(st)) break;
+
+                        st = DbgUiDebugActiveProcess (Info.ProcessHandle);
+                        Print("DbgUiDebugActiveProcess = %lx\n", st);
+                        if (!NT_SUCCESS(st)) break;
+
+                        st = ZwResumeThread (Info.ThreadHandle, NULL);
+                        Print("ZwResumeThread = %lx\n", st);
+                        if (!NT_SUCCESS(st)) break;
+
+                        DBGUI_WAIT_STATE_CHANGE StateChange;
+                        memset (&StateChange, 0, sizeof(StateChange));
+                        do
+                        {
+                            do
+                            {
+                                st = DbgUiWaitStateChange (&StateChange, NULL);
+                            }
+                            while (st == STATUS_ALERTED || st == STATUS_USER_APC);
+                            Print ("DbgUiWaitStateChange = %lx\n", st);
+                            if (!NT_SUCCESS(st)) break;
+
+                            Print ("NewState %lx (%s)\n", StateChange.NewState,
+                                DbgStates[StateChange.NewState]);
+
+                            if (StateChange.NewState != DbgBreakpointStateChange)
+                            {
+                                st = DbgUiContinue (&StateChange.AppClientId, DBG_CONTINUE);
+                                Print ("DbgUiContinue = %lx\n", st);
+                                if (!NT_SUCCESS(st)) break;
+                            }
+                        }
+                        while (StateChange.NewState != DbgBreakpointStateChange);
+
+                        Print("end-of-debugging\n");
+                    }
+                    while (FALSE);
+                }
 			}
 			else
 			{
@@ -552,7 +702,8 @@ void ProcessCommand (int argc, char **argv, char *fullremain)
 	};
 	int nParts = sizeof(TryParts)/sizeof(TryParts[0]);
 
-	for (int i=0; i<nParts; i++)
+
+    for (int i=0; i<nParts; i++)
 	{
 		ANSI_STRING aCommand;
 		UNICODE_STRING Command;
@@ -587,8 +738,7 @@ void ProcessCommand (int argc, char **argv, char *fullremain)
 			if (fullremain)
 				mbstowcs (commandline, fullremain, sizeof(commandline)/2 - 2);
 
-
-			if (!CreateProcess (NtPath.Buffer, commandline, NULL, TRUE))
+			if (!CreateProcess (NtPath.Buffer, commandline, NULL, TRUE, FALSE, NULL))
 			{
 				Print("CreateProcess failed for '%S' '%S'\n", NtPath.Buffer, commandline);
 			}
@@ -607,284 +757,8 @@ void ProcessCommand (int argc, char **argv, char *fullremain)
 
 wchar_t curdir[1024];
 
-VOID
-NTAPI
-PrintMessage(
-	PLPC_MESSAGE lpc
-	)
-{
-	char *MessageTypes[] = {
-		"LPC_NEW_MESSAGE",
-		"LPC_REQUEST",
-		"LPC_REPLY",
-		"LPC_DATAGRAM",
-		"LPC_LOST_REPLY",
-		"LPC_PORT_CLOSED",
-		"LPC_CLIENT_DIED",
-		"LPC_EXCEPTION",
-		"LPC_DEBUG_EVENT",
-		"LPC_ERROR_EVENT",
-		"LPC_CONNECTION_REQUEST"
-	};
 
-	Print("LPC_MESSAGE %08x:\n", lpc);
-	Print(" DataSize = %08x\n", lpc->DataSize);
-	Print(" MessageSize = %08x\n", lpc->MessageSize);
-	Print(" MessageType = %s [%08x]\n", lpc->MessageType > 10 ? "LPC_UNKNOWN" : MessageTypes[lpc->MessageType], lpc->MessageType);
-	Print(" VirtualRangesOffset = %08x\n", lpc->VirtualRangesOffset);
-	Print(" ClientId.UniqueThread = %08x\n", lpc->ClientId.UniqueThread);
-	Print(" ClientId.UniqueProcess = %08x\n", lpc->ClientId.UniqueProcess);
-	Print(" MessageId = %08x\n", lpc->MessageId);
-	Print(" SectionSize = %08x\n", lpc->SectionSize);
-
-	for( int i=0; i<lpc->DataSize; i++ ) 
-	{
-		Print(" %02x", lpc->Data[i]);
-	}
-
-	Print("\n\n");
-}
-
-VOID
-NTAPI
-HardErrorThread(
-	PVOID Parameter
-	)
-{
-	HANDLE hHardErrorPort;
-	NTSTATUS Status;
-
-	hHardErrorPort = CreatePort (NULL, 0);
-	if (hHardErrorPort == NULL)
-	{
-		Status = GetLastStatus();
-		Print("HARDERR: CreatePort failed with status %08x\n", Status);
-		RtlExitUserThread (Status);
-	}
-
-	Status = ZwSetDefaultHardErrorPort (hHardErrorPort);
-
-	if (!NT_SUCCESS(Status))
-	{
-		Print("HARDERR: ZwSetDefaultHardErrorPort failed with status %08x\n", Status);
-		CloseHandle (hHardErrorPort);
-		RtlExitUserThread (Status);
-	}
-
-	UCHAR MessageBuffer [0x148];
-	LPC_MESSAGE *Message = (LPC_MESSAGE*) MessageBuffer;
-
-	for (;;)
-	{
-		if (!WaitReceivePort (hHardErrorPort, Message))
-		{
-			Print("HARDERR: WaitReceivePort failed with st %08x\n", GetLastStatus());
-		}
-
-		switch (Message->MessageType)
-		{
-		case LPC_ERROR_EVENT:
-			{
-				PHARDERROR_MSG h = (PHARDERROR_MSG) Message;
-
-				Print(
-					"**************************************************************\n"
-					"*               Hard Error Port got a message                *\n"
-					"**************************************************************\n"
-                    "     ===  PID 08x  TID %08x ===\n"
-					" ErrorStatus = %08x          ResponseOption = %08x\n"
-					" NumberOfParameters = %08x   ParametersMask = %08x\n"
-					" Parameters [%08x %08x %08x %08x]\n"
-					"**************************************************************\n"
-					,
-                    Message->ClientId.UniqueProcess,Message->ClientId.UniqueThread,
-					h->ErrorStatus,
-					h->ResponseOption,
-					h->NumberOfParameters,
-					h->UnicodeStringParameterMask,
-					h->Parameters[0], h->Parameters[1], 
-					h->Parameters[2], h->Parameters[3]
-				);
-
-                if (h->ErrorStatus == 0x17e8)
-                {
-                    // Application initialization exception
-                    PTASKLIST_CONTEXT Context;
-                    wchar_t procName[256] = L"(unknown process)";
-
-                    if (ProcessFirst (&Context))
-                    {
-                        do
-                        {
-                            if (Context->Proc->ProcessId == (ULONG)Message->ClientId.UniqueProcess)
-                            {
-                                memcpy (procName, 
-                                    Context->Proc->ProcessName.Buffer, 
-                                    Context->Proc->ProcessName.MaximumLength);
-                                break;
-                            }
-                        }
-                        while (ProcessNext (&Context));
-                    }
-
-                    Print("Process %S failed to initialize with status %08x\n", procName, h->Parameters[0]);
-                    
-                    if (h->Parameters[0] == STATUS_DLL_INIT_FAILED)
-                    {
-                        Print("STATUS_DLL_INIT_FAILED: Initialization of the dynamic link \n"
-                              " library failed. The process is terminating abnormally.\n");
-                    }
-
-                    Print ("**************************************************************\n");
-                }
-
-				h->Response = ResponseNotHandled;
-
-				switch (h->ResponseOption)
-				{
-				case OptionAbortRetryIgnore:
-
-					{
-						char str[10];
-
-						do
-						{
-							ReadString (GetDefaultKeyboard(), 
-								"Abort/Retry/Ignore (ARI)? ", str, sizeof(str)-1, 0);
-
-							str[0] = toupper (str[0]);
-						}
-						while (str[0] != 'A' &&
-							   str[0] != 'R' &&
-							   str[0] != 'I');
-
-						switch (str[0])
-						{
-						case 'A': h->Response = ResponseAbort; break;
-						case 'R': h->Response = ResponseRetry; break;
-						case 'I': h->Response = ResponseIgnore; break;
-						}
-					}
-					break;
-
-				case OptionOk:
-					{
-						h->Response = ResponseOk;
-						break;
-					}
-
-				case OptionOkCancel:
-					{
-						char str[10];
-
-						do
-						{
-							ReadString (GetDefaultKeyboard(), 
-								"Ok/Cancel (OC)? ",
-								str, sizeof(str)-1, 0);
-
-							str[0] = toupper (str[0]);
-						}
-						while (str[0] != 'O' &&
-							   str[0] != 'C');
-
-						switch (str[0])
-						{
-						case 'O': h->Response = ResponseOk; break;
-						case 'C': h->Response = ResponseCancel; break;
-						}
-					}
-					break;
-
-				case OptionRetryCancel:
-					{
-						char str[10];
-
-						do
-						{
-							ReadString (GetDefaultKeyboard(), 
-								"Retry/Cancel (RC)? ", 
-								str, sizeof(str)-1, 0);
-
-							str[0] = toupper (str[0]);
-						}
-						while (str[0] != 'R' &&
-							   str[0] != 'C');
-
-						switch (str[0])
-						{
-						case 'R': h->Response = ResponseRetry; break;
-						case 'C': h->Response = ResponseCancel; break;
-						}
-					}
-					break;
-				
-				case OptionYesNo:
-					{
-						char str[10];
-
-						do
-						{
-							ReadString (GetDefaultKeyboard(), 
-								"Yes/No (YN)? ", 
-								str, sizeof(str)-1, 0);
-
-							str[0] = toupper (str[0]);
-						}
-						while (str[0] != 'Y' &&
-							   str[0] != 'N');
-
-						switch (str[0])
-						{
-						case 'Y': h->Response = ResponseYes; break;
-						case 'N': h->Response = ResponseNo; break;
-						}
-					}
-					break;
-
-				case OptionYesNoCancel:
-
-					{
-						char str[10];
-
-						do
-						{
-							ReadString (GetDefaultKeyboard(), 
-								"Yes/No/Cancel (YNC)? ", str, sizeof(str)-1, 0);
-
-							str[0] = toupper (str[0]);
-						}
-						while (str[0] != 'Y' &&
-							   str[0] != 'N' &&
-							   str[0] != 'C');
-
-						switch (str[0])
-						{
-						case 'Y': h->Response = ResponseYes; break;
-						case 'N': h->Response = ResponseNo; break;
-						case 'C': h->Response = ResponseCancel; break;
-						}
-					} // case
-					break;
-				} // switch
-
-				ReplyPort (hHardErrorPort, &h->LpcMessageHeader);
-
-			} // case
-			break;
-
-		default:
-
-			PrintMessage (Message);
-
-		} // switch
-			
-	} // for (;;)
-
-	RtlExitUserThread (STATUS_SUCCESS);
-}
-
-BOOLEAN bHardErrThreadRunning = FALSE;
+BOOLEAN bShellInitialized = FALSE;
 
 NTSTATUS
 NTAPI
@@ -896,26 +770,41 @@ NativeEntry(
 	Print("NT Shell 0.1\n");
 	Print("Press ESC to continue loading Windows.\n");
 
-logoff:
-	logon();
-
-    if (bHardErrThreadRunning == FALSE)
+    hSuccessfulLogonEvent = OpenEvent (EVENT_ALL_ACCESS, L"\\SuccessfulLogon");
+    if (!hSuccessfulLogonEvent)
     {
-	    if(!CreateThread (NtCurrentProcess(), 
-		    FALSE, 
-		    HardErrorThread,
-		    NULL,
-		    NULL,
-		    NULL
-		    ))
-	    {
-		    Print("CreateThread failed for harderror thread with status %08x\n", GetLastStatus());
-	    }
-        else
-        {
-            bHardErrThreadRunning = TRUE;
-            DisableExitOnEsc ();
-        }
+        Print ("OpenEvent (successful logon) failed with status %lx\n", GetLastStatus());
+        return GetLastStatus();
+    }
+
+    hReturnToWindowsEvent = OpenEvent (EVENT_ALL_ACCESS, L"\\ReturnToWindows");
+    if (!hReturnToWindowsEvent)
+    {
+        Print ("OpenEvent (return to windows) failed with status %lx\n", GetLastStatus());
+        return GetLastStatus();
+    }
+
+logoff:
+
+    __try
+    {
+        logon();
+    }
+    __except ( GetExceptionCode() == MANUALLY_INITIATED_CRASH ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH )
+    {
+        Print ("Returning to windows\n");
+        SetEvent (hReturnToWindowsEvent);
+        CloseHandle (hReturnToWindowsEvent);
+        CloseHandle (hSuccessfulLogonEvent);
+        return STATUS_SUCCESS;
+    }
+
+    if (hSuccessfulLogonEvent)
+    {
+        SetEvent (hSuccessfulLogonEvent);
+        CloseHandle (hSuccessfulLogonEvent);
+        CloseHandle (hReturnToWindowsEvent);
+        hSuccessfulLogonEvent = NULL;
     }
 
     for (;;)
@@ -979,8 +868,7 @@ logoff:
 
 		if (!stricmp (args[0], "exit"))
         {
-		//	break;
-            Print("Exit is not supported due to harderror port.\n");
+		    TryExit();
         }
 		
 		if (!stricmp (args[0], "logoff"))
@@ -995,6 +883,5 @@ logoff:
 		hfree (fullremain);
 	}
 
-	Print("[+] NTSample exit\n");
 	return STATUS_SUCCESS;
 }
