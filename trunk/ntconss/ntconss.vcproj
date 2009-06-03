@@ -2,9 +2,9 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="9,00"
-	Name="psxss"
-	ProjectGUID="{41AA3A7E-3222-4917-AEA9-7B40455DDB27}"
-	RootNamespace="psxss"
+	Name="ntconss"
+	ProjectGUID="{62C204A9-DC35-425A-9D5D-48DF0DB4411A}"
+	RootNamespace="ntconss"
 	Keyword="Win32Proj"
 	TargetFrameworkVersion="196613"
 	>
@@ -41,15 +41,16 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="../../"
+				AdditionalIncludeDirectories="../"
 				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="0"
-				RuntimeLibrary="3"
+				RuntimeLibrary="1"
 				BufferSecurityCheck="false"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				DebugInformationFormat="4"
+				CallingConvention="2"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -62,21 +63,14 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalOptions="/DLL"
-				AdditionalDependencies="../../bin/ntwrappr.lib ntdll.lib $(NOINHERIT)"
-				OutputFile="../../bin/psxss.dll"
-				LinkIncremental="2"
+				AdditionalDependencies="../bin/ntwrappr.lib ntdll.lib $(NOINHERIT)"
+				OutputFile="../bin/ntconss.exe"
+				LinkIncremental="0"
 				GenerateManifest="false"
 				IgnoreAllDefaultLibraries="true"
-				ModuleDefinitionFile="psxss.def"
 				GenerateDebugInformation="true"
 				SubSystem="3"
-				EntryPointSymbol="NativeEntry"
-				SetChecksum="false"
-				BaseAddress="0x20000"
-				RandomizedBaseAddress="0"
-				FixedBaseAddress="1"
-				DataExecutionPrevention="0"
+				EntryPointSymbol="EntryPoint"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -180,38 +174,16 @@
 	</References>
 	<Files>
 		<Filter
-			Name="Source Files"
-			Filter="cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx"
-			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
-			>
-			<File
-				RelativePath=".\fmt.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\io.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\psxss.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\psxss.def"
-				>
-			</File>
-		</Filter>
-		<Filter
 			Name="Header Files"
-			Filter="h;hpp;hxx;hm;inl;inc;xsd"
-			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 		</Filter>
 		<Filter
-			Name="Resource Files"
-			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav"
-			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
+			Name="Source Files"
 			>
+			<File
+				RelativePath=".\ntconss.cpp"
+				>
+			</File>
 		</Filter>
 	</Files>
 	<Globals>

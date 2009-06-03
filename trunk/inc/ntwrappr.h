@@ -26,6 +26,8 @@ ExceptionFilter(
 	PEXCEPTION_POINTERS einfo
 	);
 
+#include "file.h"
+
 HANDLE
 NTAPI
 CreateFile (
@@ -179,30 +181,56 @@ ENTRY_SPEC
 VOID 
 NTAPI 
 EntryPoint(
-	IN PSTARTUP_ARGUMENT Startup
+	IN PPEB Peb
 	)
 {
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    BOOLEAN InProtectedSection = FALSE;
 
+    // Put all initialization code in try-except block
 	__try
 	{
+        PRTL_USER_PROCESS_PARAMETERS ProcessParameters = Peb->ProcessParameters;
+
+        // Normalize process parameters.
+        // RtlCreateUserProcess de-normalizes parameters for new process and 
+        // pointers in RTL_USER_PROCESS_PARAMETERS are converted to offsets.
+        // RtlNormalizeProcessParams reverses this operation.
+        RtlNormalizeProcessParams (ProcessParameters);
+
+        // Initialize NT Wrapper DLL
 		if (InitializeWrapper ())
 		{
+            // Enter memory protected section.
+            // We can trace memory leaks now.
             if (!MemoryEnterProtectedSection())
             {
                 Print("MemoryEnterProtectedSection() failed\n");
                 Status = STATUS_UNSUCCESSFUL;
             }
 
-			Status = NativeEntry (	&Startup->Environment->ImageFile,
-									&Startup->Environment->CommandLine );
+            InProtectedSection = TRUE;
 
+            Status = NativeEntry (	&ProcessParameters->ImagePathName,
+                                    &ProcessParameters->CommandLine );
+
+            // Leave memory protected section and check for leaks.
             MemoryLeaveProtectedSection ();
-		}
+
+            InProtectedSection = FALSE;
+        }
 	}
 	__except (ExceptionFilter(GetExceptionInformation()))
 	{
 		Status = GetExceptionCode();
+
+#ifdef CHECK_FOR_LEAKS_ON_EXCEPTION
+        if (InProtectedSection)
+        {
+            // Leave memory protected section and check for leaks.
+            MemoryLeaveProtectedSection ();
+        }
+#endif
 
 #ifdef FAIL_ON_EXCEPTION
 		HARDERROR_RESPONSE Response;
@@ -250,7 +278,8 @@ EntryPoint(
 		}
 
 #endif
-		KdPrint(("Loading Windows ...      \n"));
+
+//        KdPrint(("Loading Windows ...      \n"));
 	}
 
 	ZwTerminateProcess (NtCurrentProcess(), Status);
@@ -295,7 +324,9 @@ CreateProcess(
 	PWSTR ApplicationName,
 	PWSTR CommandLine,
 	PCLIENT_ID ClientId,
-	BOOLEAN WaitForProcess
+	BOOLEAN WaitForProcess,
+    BOOLEAN CreateSuspended,
+    PRTL_USER_PROCESS_INFORMATION ProcessInformation OPTIONAL
 	);
 
 BOOLEAN
@@ -356,6 +387,12 @@ NTAPI
 GetCurrentDirectory(
 	OUT PUNICODE_STRING Path
 	);
+
+VOID
+NTAPI
+SetCurrentDirectory(
+    IN PUNICODE_STRING Path
+    );
 
 VOID
 NTAPI
@@ -427,8 +464,49 @@ GetProcedureAddress(
     PCHAR ProcedureName
     );
 
+BOOLEAN
+NTAPI
+TryExit(
+    );
 
 int _cdecl str_replace_char (char *string, char ch1, char ch2);
 int _cdecl stri_replace_char (char *string, char ch1, char ch2);
 
+BOOLEAN
+NTAPI
+CheckNtStatus(
+	NTSTATUS Status
+	);
+
+HANDLE
+NTAPI
+CreateEvent(
+    ULONG AccessMask,
+    PWSTR wEventName OPTIONAL,
+    EVENT_TYPE EventType,
+    BOOLEAN InitialState
+    );
+
+HANDLE
+NTAPI
+OpenEvent(
+    ULONG AccessMask,
+    PWSTR Name
+    );
+
+#define EVENT_STATE_ERROR   ((ULONG)-1)
+
+ULONG
+NTAPI
+SetEvent(
+    HANDLE hEvent
+    );
+
 }
+
+char* _cdecl strdup (char* s);
+
+#if NTWRAPPR
+#undef NT_SUCCESS
+#define NT_SUCCESS(STATUS) CheckNtStatus(STATUS)
+#endif

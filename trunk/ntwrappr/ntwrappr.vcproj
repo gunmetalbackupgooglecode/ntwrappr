@@ -149,7 +149,8 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				InlineFunctionExpansion="1"
-				PreprocessorDefinitions="WIN32;DBG=1;_WINDOWS;_X86_"
+				AdditionalIncludeDirectories="../"
+				PreprocessorDefinitions="WIN32;DBG=1;_WINDOWS;_X86_;NTWRAPPR=1"
 				StringPooling="true"
 				RuntimeLibrary="0"
 				BufferSecurityCheck="false"
@@ -221,32 +222,68 @@
 	<References>
 	</References>
 	<Files>
-		<File
-			RelativePath=".\dllentry.cpp"
+		<Filter
+			Name="Header Files"
 			>
-		</File>
-		<File
-			RelativePath="..\native.h"
+			<File
+				RelativePath="..\native.h"
+				>
+			</File>
+			<File
+				RelativePath="..\ntwrappr.h"
+				>
+			</File>
+			<File
+				RelativePath="..\pe_image.h"
+				>
+			</File>
+		</Filter>
+		<Filter
+			Name="Source Files"
 			>
-		</File>
-		<File
-			RelativePath="..\ntwrappr.cpp"
-			>
-		</File>
+			<File
+				RelativePath=".\console.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\dllentry.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\files.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\ldr.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\lpc.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\memory.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\ntwrappr.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\procthrd.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\runtime.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\sprtapi.cpp"
+				>
+			</File>
+		</Filter>
 		<File
 			RelativePath=".\ntwrappr.def"
-			>
-		</File>
-		<File
-			RelativePath="..\ntwrappr.h"
-			>
-		</File>
-		<File
-			RelativePath="..\pe_image.h"
-			>
-		</File>
-		<File
-			RelativePath="..\sprtapi.cpp"
 			>
 		</File>
 	</Files>

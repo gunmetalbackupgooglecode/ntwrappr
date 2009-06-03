@@ -33,6 +33,7 @@ EXPORTS
 	SetProcessHeap
 	GetProcessHeap
 	GetCurrentDirectory
+	SetCurrentDirectory
 	CreatePort
 	WaitReceivePort
 	AcceptPort
@@ -44,4 +45,10 @@ EXPORTS
 	LoadDll
 	FindDll
 	GetProcedureAddress
+	TryExit
+	CreateEvent
+	OpenEvent
+	SetEvent
+	; g
 	
+	; g
