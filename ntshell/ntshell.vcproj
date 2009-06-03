@@ -185,6 +185,10 @@
 				>
 			</File>
 		</Filter>
+		<File
+			RelativePath=".\ntshell.res"
+			>
+		</File>
 	</Files>
 	<Globals>
 	</Globals>

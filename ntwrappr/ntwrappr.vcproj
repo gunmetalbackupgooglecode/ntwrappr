@@ -306,6 +306,10 @@
 			RelativePath=".\ntwrappr.def"
 			>
 		</File>
+		<File
+			RelativePath=".\ntwrappr.res"
+			>
+		</File>
 	</Files>
 	<Globals>
 	</Globals>

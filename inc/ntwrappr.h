@@ -1,5 +1,8 @@
 #pragma once
 
+#define NTWRAPPER_VERSION_A "0.3.0-alpha"
+#define NTWRAPPER_VERSION_W L"0.3.0-alpha"
+
 #ifndef _X86_
 
 #define DBG 1
