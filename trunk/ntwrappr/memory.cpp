@@ -23,6 +23,8 @@ typedef struct MEM_PROTECTED_SECTION
 
 PMEM_PROTECTED_SECTION GlobMemProtection;
 
+/* Add new allocation to allocation table */
+static
 VOID
 _ProtectAddAllocation(
     PVOID Ptr,
@@ -52,6 +54,8 @@ _ProtectAddAllocation(
     }
 }
 
+/* Delete allocation from internal allocation table */
+static
 VOID
 _ProtectDeleteAllocation(
     PVOID Ptr
@@ -72,6 +76,8 @@ _ProtectDeleteAllocation(
     }
 }
 
+/* Check for memory leaks */
+static
 VOID
 _ProtectCheckLeaks(
     PMEM_PROTECTED_SECTION Sect
@@ -108,6 +114,7 @@ _ProtectCheckLeaks(
         Print("No leaks found\n");
 }
 
+/* Global free function */
 VOID
 NTAPI
 hfree (
@@ -120,6 +127,7 @@ hfree (
 	RtlFreeHeap (heap, 0, Ptr);
 }
 
+/* Global alloc function */
 PVOID
 NTAPI
 halloc (
@@ -134,6 +142,7 @@ halloc (
     return p;
 }
 
+/* Enter protected memory section */
 BOOLEAN
 NTAPI
 MemoryEnterProtectedSection(
@@ -158,6 +167,7 @@ MemoryEnterProtectedSection(
     return TRUE;
 }
 
+/* Leave protected memory section */
 VOID
 NTAPI
 MemoryLeaveProtectedSection(
@@ -174,6 +184,7 @@ MemoryLeaveProtectedSection(
     hfree (p);
 }
 
+/* Set process' default heap */
 VOID
 NTAPI
 SetProcessHeap(
@@ -184,6 +195,7 @@ SetProcessHeap(
     heap = hHeap;
 }
 
+/* Get process' default heap */
 #ifndef NTTEST
 HANDLE
 NTAPI

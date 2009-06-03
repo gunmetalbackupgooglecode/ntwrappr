@@ -26,62 +26,7 @@ ExceptionFilter(
 	PEXCEPTION_POINTERS einfo
 	);
 
-#include "file.h"
-
-HANDLE
-NTAPI
-CreateFile (
-	PWSTR FileName, 
-	ULONG AccessMode, 
-	ULONG ShareMode, 
-	ULONG Disposition, 
-	ULONG Options,
-	ULONG Attributes
-	);
-
-HANDLE
-NTAPI
-OpenFile (
-	PWSTR FileName,
-	ULONG AccessMode,
-	ULONG ShareAccess,
-	ULONG OpenOptions
-	);
-
-ULONG 
-NTAPI
-ReadFile (
-	HANDLE hFile, 
-	PVOID Buffer, 
-	ULONG MaxLen, 
-	ULONG Position
-	);
-
-typedef const void *PCVOID;
-
-ULONG 
-NTAPI
-WriteFile (
-	HANDLE hFile, 
-	PCVOID Buffer, 
-	ULONG Length, 
-	ULONG Position
-	);
-
-BOOLEAN
-NTAPI
-CloseHandle (
-	HANDLE hObject
-	);
-
-BOOLEAN
-NTAPI
-QueryDirectory (
-	HANDLE hDir, 
-	BOOLEAN RestartScan,
-	PFILE_BOTH_DIR_INFORMATION Buffer,
-	ULONG MaxLen
-	);
+#include "files.h"
 
 VOID
 NTAPI
@@ -286,113 +231,10 @@ EntryPoint(
 }
 #endif
 
-typedef struct _TASKLIST_CONTEXT
-{
-	PSYSTEM_PROCESSES_INFORMATION Buffer;
-	PSYSTEM_PROCESSES_INFORMATION Proc;
-} TASKLIST_CONTEXT, *PTASKLIST_CONTEXT;
 
-
-BOOLEAN
-NTAPI
-ProcessFirst (
-	PTASKLIST_CONTEXT *pContext
-	);
-
-BOOLEAN
-NTAPI
-ProcessNext (
-	PTASKLIST_CONTEXT *Context
-	);
-
-HANDLE
-NTAPI
-CreateDirectory(
-	PWSTR Path
-	);
-
-HANDLE
-NTAPI
-CreateSymbolicLink(
-	PWSTR Name,
-	PWSTR Target
-	);
-
-BOOLEAN
-NTAPI
-CreateProcess(
-	PWSTR ApplicationName,
-	PWSTR CommandLine,
-	PCLIENT_ID ClientId,
-	BOOLEAN WaitForProcess,
-    BOOLEAN CreateSuspended,
-    PRTL_USER_PROCESS_INFORMATION ProcessInformation OPTIONAL
-	);
-
-BOOLEAN
-NTAPI
-CreateThread(
-	HANDLE ProcessHandle,
-	BOOLEAN CreateSuspended,
-	PVOID StartAddress,
-	PVOID Parameter OPTIONAL,
-	PHANDLE ThreadHandle OPTIONAL,
-	PCLIENT_ID ClientId OPTIONAL
-	);
-
-
-BOOLEAN
-NTAPI
-CommandLineToArgv(
-	PSTR CommandLine,
-	int *pArgc,
-	PSTR *pArgv
-	);
-
-BOOLEAN
-NTAPI
-CommandLineToArgvW(
-	PWSTR CommandLine,
-	int *pArgc,
-	PWSTR *pArgv
-	);
-
-VOID
-NTAPI
-SetLastStatus(
-	NTSTATUS Status
-	);
-
-NTSTATUS
-NTAPI
-GetLastStatus(
-	);
-
-NTSTATUS
-NTAPI
-WinPathToNtPath(
-	OUT PUNICODE_STRING NtPath,
-	IN PUNICODE_STRING WinPath
-	);
-
-NTSTATUS
-NTAPI
-AllocateUnicodeString(
-	OUT PUNICODE_STRING String,
-	IN USHORT MaximumLength
-	);
-
-VOID
-NTAPI
-GetCurrentDirectory(
-	OUT PUNICODE_STRING Path
-	);
-
-VOID
-NTAPI
-SetCurrentDirectory(
-    IN PUNICODE_STRING Path
-    );
+#include "procthrd.h"
+#include "runtime.h"
+#include "objects.h"
 
 VOID
 NTAPI
@@ -478,29 +320,6 @@ CheckNtStatus(
 	NTSTATUS Status
 	);
 
-HANDLE
-NTAPI
-CreateEvent(
-    ULONG AccessMask,
-    PWSTR wEventName OPTIONAL,
-    EVENT_TYPE EventType,
-    BOOLEAN InitialState
-    );
-
-HANDLE
-NTAPI
-OpenEvent(
-    ULONG AccessMask,
-    PWSTR Name
-    );
-
-#define EVENT_STATE_ERROR   ((ULONG)-1)
-
-ULONG
-NTAPI
-SetEvent(
-    HANDLE hEvent
-    );
 
 }
 

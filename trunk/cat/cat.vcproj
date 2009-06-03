@@ -4,6 +4,7 @@
 	Version="9,00"
 	Name="cat"
 	ProjectGUID="{0957B4B1-C1A4-4211-91FC-1878E539C89C}"
+	RootNamespace="cat"
 	TargetFrameworkVersion="131072"
 	>
 	<Platforms>
@@ -148,6 +149,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				InlineFunctionExpansion="1"
+				AdditionalIncludeDirectories="../inc/"
 				PreprocessorDefinitions="WIN32;DBG=1;_WINDOWS;_X86_"
 				StringPooling="true"
 				RuntimeLibrary="0"
@@ -219,34 +221,38 @@
 	<References>
 	</References>
 	<Files>
-		<File
-			RelativePath="cat.cpp"
+		<Filter
+			Name="Header Files"
 			>
-			<FileConfiguration
-				Name="Release|Win32"
-				>
-				<Tool
-					Name="VCCLCompilerTool"
-					Optimization="2"
-					PreprocessorDefinitions=""
-					BrowseInformation="1"
-				/>
-			</FileConfiguration>
-			<FileConfiguration
-				Name="Debug|Win32"
-				>
-				<Tool
-					Name="VCCLCompilerTool"
-					Optimization="2"
-					PreprocessorDefinitions=""
-					BrowseInformation="1"
-				/>
-			</FileConfiguration>
-		</File>
-		<File
-			RelativePath="H:\Program Files\Microsoft Visual Studio\VC98\Include\ntddk\ddk\ntddk.h"
+		</Filter>
+		<Filter
+			Name="Source Files"
 			>
-		</File>
+			<File
+				RelativePath="cat.cpp"
+				>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						Optimization="2"
+						PreprocessorDefinitions=""
+						BrowseInformation="1"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						Optimization="2"
+						PreprocessorDefinitions=""
+						BrowseInformation="1"
+					/>
+				</FileConfiguration>
+			</File>
+		</Filter>
 	</Files>
 	<Globals>
 	</Globals>

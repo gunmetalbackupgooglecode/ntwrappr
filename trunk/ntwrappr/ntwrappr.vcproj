@@ -149,7 +149,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				InlineFunctionExpansion="1"
-				AdditionalIncludeDirectories="../"
+				AdditionalIncludeDirectories="../inc/"
 				PreprocessorDefinitions="WIN32;DBG=1;_WINDOWS;_X86_;NTWRAPPR=1"
 				StringPooling="true"
 				RuntimeLibrary="0"
@@ -226,15 +226,31 @@
 			Name="Header Files"
 			>
 			<File
-				RelativePath="..\native.h"
+				RelativePath="..\inc\files.h"
 				>
 			</File>
 			<File
-				RelativePath="..\ntwrappr.h"
+				RelativePath="..\inc\native.h"
 				>
 			</File>
 			<File
-				RelativePath="..\pe_image.h"
+				RelativePath="..\inc\ntwrappr.h"
+				>
+			</File>
+			<File
+				RelativePath="..\inc\objects.h"
+				>
+			</File>
+			<File
+				RelativePath="..\inc\pe_image.h"
+				>
+			</File>
+			<File
+				RelativePath="..\inc\procthrd.h"
+				>
+			</File>
+			<File
+				RelativePath="..\inc\runtime.h"
 				>
 			</File>
 		</Filter>
@@ -267,6 +283,10 @@
 			</File>
 			<File
 				RelativePath=".\ntwrappr.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\objects.cpp"
 				>
 			</File>
 			<File

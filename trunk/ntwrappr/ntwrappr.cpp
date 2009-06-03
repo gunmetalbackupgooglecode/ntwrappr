@@ -6,54 +6,6 @@
 
 #include "ntwrappr.h"
 
-/*
-ULONG
-_cdecl 
-DisplayString (
-	PWSTR Format, 
-	...
-	)
-{
-	UNICODE_STRING us;
-	wchar_t Buffer[1024];
-	char cBuffer[1024];
-	va_list va;
-	ULONG nSymbols;
-	ANSI_STRING us;
-
-	va_start (va, Format);
-
-	_vsnprintf (cBuffer, 
-
-	nSymbols = _vsnwprintf (Buffer, sizeof(Buffer)-1, Format, va);
-
-	RtlInitUnicodeString (&us, Buffer);
-	
-	if (!NT_SUCCESS(ZwDisplayString (&us)))
-		nSymbols = 0;
-
-	return nSymbols;
-}
-*/
-
-VOID
-NTAPI
-SetLastStatus(
-	NTSTATUS Status
-	)
-{
-	// Use this place to store NTSTATUS.
-	RtlSetLastWin32Error (Status);
-}
-
-NTSTATUS
-NTAPI
-GetLastStatus(
-	)
-{
-	return RtlGetLastWin32Error ();
-}
-
 BOOLEAN
 CheckNtStatus(
 	NTSTATUS Status
@@ -98,63 +50,6 @@ Print (
 
 	return nSymbols;
 }
-
-/*
-#pragma pack(push,1)
-struct WRITE_STRUCT
-{
-	ULONG X;
-	ULONG Y;
-	UCHAR Unk1;
-	CHAR Buffer[1024];
-};
-#pragma pack(pop)
-
-HANDLE hPrint;
-
-ULONG
-_cdecl
-PrintXY (
-	int x,
-	int y,
-	PCH Format,
-	...
-	)
-{
-	WRITE_STRUCT ws;
-	va_list va;
-	ULONG nSymbols;
-
-	va_start (va, Format);
-
-	ws.X = (ULONG) x;
-	ws.Y = (ULONG) y;
-	ws.Unk1 = TRUE;
-
-	nSymbols = _vsnprintf (ws.Buffer, sizeof(ws.Buffer)-1, Format, va);
-
-	if (hPrint == NULL)
-	{
-		hPrint = CreateFile (L"\\Device\\DisplayStringXY", 
-			GENERIC_WRITE | SYNCHRONIZE | FILE_READ_ATTRIBUTES,
-			FILE_SHARE_READ | FILE_SHARE_WRITE,
-			FILE_OPEN,
-			FILE_SYNCHRONOUS_IO_NONALERT | FILE_NON_DIRECTORY_FILE,
-			FILE_ATTRIBUTE_NORMAL
-			);
-
-		if (hPrint == NULL)
-		{
-			KdPrint(("OpenFile failed for driver\n"));
-			return 0;
-		}
-	}
-
-	WriteFile (hPrint, &ws, sizeof(ws), -1);
-
-	return nSymbols;
-}
-*/
 
 #ifdef NTTEST
 extern "C" int _cdecl printf (const char*, ...);
@@ -207,15 +102,6 @@ ExceptionFilter(
 	return EXCEPTION_EXECUTE_HANDLER;
 }
 
-
-BOOLEAN
-NTAPI
-CloseHandle (
-	HANDLE hObject
-	)
-{
-	return NT_SUCCESS (ZwClose (hObject));
-}
 
 PVOID
 NTAPI
@@ -312,61 +198,6 @@ InitializeWrapper(
 char CurrentDirectory[1024] = "\\";
 
 
-HANDLE
-NTAPI
-CreateDirectory(
-	PWSTR Path
-	)
-{
-	OBJECT_ATTRIBUTES Oa;
-	UNICODE_STRING us;
-	HANDLE hDir;
-	NTSTATUS Status;
-
-	RtlInitUnicodeString (&us, Path);
-	InitializeObjectAttributes (&Oa, &us, 0, 0, 0);
-
-	Status = ZwCreateDirectoryObject (
-		&hDir,
-		DIRECTORY_ALL_ACCESS,
-		&Oa
-		);
-
-	if (!NT_SUCCESS(Status))
-		hDir = NULL;
-
-	return hDir;
-}
-
-HANDLE
-NTAPI
-CreateSymbolicLink(
-	PWSTR Name,
-	PWSTR Target
-	)
-{
-	NTSTATUS Status;
-	HANDLE hLink;
-	OBJECT_ATTRIBUTES Oa;
-	UNICODE_STRING Src, Dst;
-
-	RtlInitUnicodeString (&Src, Name);
-	RtlInitUnicodeString (&Dst, Target);
-	InitializeObjectAttributes (&Oa, &Src, 0, 0, 0);
-
-	Status = ZwCreateSymbolicLinkObject (
-		&hLink,
-		FILE_READ_ATTRIBUTES,
-	  	&Oa,
-		&Dst
-		);
-
-	if (!NT_SUCCESS(Status))
-		hLink = NULL;
-
-	return hLink;
-}
-
 #ifndef NTTEST
 NTSTATUS
 NTAPI
@@ -384,85 +215,3 @@ Sleep(
 }
 #endif
 
-HANDLE
-NTAPI
-CreateEvent(
-    ULONG AccessMask,
-    PWSTR wEventName OPTIONAL,
-    EVENT_TYPE EventType,
-    BOOLEAN InitialState
-    )
-{
-    NTSTATUS Status;
-    OBJECT_ATTRIBUTES Oa;
-    UNICODE_STRING EventName, *pEventName = NULL;
-    HANDLE EventHandle;
-
-    if (ARGUMENT_PRESENT(wEventName))
-    {
-        RtlInitUnicodeString (&EventName, wEventName);
-        pEventName = &EventName;
-    }
-
-    InitializeObjectAttributes (&Oa, pEventName, 0, 0, 0);
-
-    Status = ZwCreateEvent (
-        &EventHandle,
-        AccessMask,
-        &Oa,
-        EventType,
-        InitialState);
-
-    if (!NT_SUCCESS(Status))
-    {
-        EventHandle = NULL;
-    }
-
-    return EventHandle;
-}
-
-HANDLE
-NTAPI
-OpenEvent(
-    ULONG AccessMask,
-    PWSTR Name
-    )
-{
-    OBJECT_ATTRIBUTES Oa;
-    UNICODE_STRING EventName;
-    NTSTATUS Status;
-    HANDLE EventHandle;
-
-    RtlInitUnicodeString (&EventName, Name);
-    InitializeObjectAttributes (&Oa, &EventName, OBJ_CASE_INSENSITIVE, 0, 0);
-
-    Status = ZwOpenEvent (
-        &EventHandle,
-        AccessMask,
-        &Oa);
-
-    if (!NT_SUCCESS(Status))
-    {
-        EventHandle = NULL;
-    }
-
-    return EventHandle;
-}
-
-ULONG
-NTAPI
-SetEvent(
-    HANDLE hEvent
-    )
-{
-    ULONG PreviousState;
-    NTSTATUS Status;
-
-    Status = ZwSetEvent (hEvent, &PreviousState);
-    if (!NT_SUCCESS(Status))
-    {
-        PreviousState = EVENT_STATE_ERROR;
-    }
-
-    return PreviousState;
-}

@@ -34,10 +34,7 @@ BOOLEAN Shifted = FALSE;
 BOOLEAN CapsLock = FALSE;
 
 
-//
-// Open keyboard device & return its handle
-//
-
+/* Open keyboard device & return its handle */
 HANDLE 
 NTAPI
 OpenKeyboard (
@@ -59,10 +56,8 @@ OpenKeyboard (
 
 BOOLEAN bExitOnEscEnabled = TRUE;
 
-//
-// Disable exit on ESC
-//
-
+/* Disable exit on ESC.
+   Should be used by subsystem when it sets default harderror port */
 VOID
 NTAPI
 DisableExitOnEsc(
@@ -71,6 +66,7 @@ DisableExitOnEsc(
     bExitOnEscEnabled = FALSE;
 }
 
+/* Try to exit. If fails, returns FALSE. On success does not return */
 BOOLEAN
 NTAPI
 TryExit(
@@ -88,10 +84,7 @@ TryExit(
     return FALSE;
 }
 
-//
-// ReadChar() - read character from keyboard with ascii translation
-//
-
+/* ReadChar() - read character from keyboard with ascii translation */
 UCHAR
 NTAPI
 ReadChar (
@@ -194,10 +187,8 @@ _exit:
 	return Ret;
 }
 
-//
-// Read null-terminated string from keyboard.
-// User presses some keys and finishes with ENTER
-//
+/* Read null-terminated string from keyboard.
+   User presses some keys and finishes with ENTER */
 ULONG
 NTAPI
 ReadString (
@@ -267,6 +258,7 @@ ReadString (
 
 HANDLE hKeyboard;
 
+/* Get default keyboard handle */
 HANDLE
 NTAPI
 GetDefaultKeyboard(

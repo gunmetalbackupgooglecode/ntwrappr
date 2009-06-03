@@ -131,6 +131,26 @@ IsWinPathRelative(
 
 }
 
+/* Ûet last NTSTATUS */
+VOID
+NTAPI
+SetLastStatus(
+	NTSTATUS Status
+	)
+{
+	// Use this place to store NTSTATUS.
+	RtlSetLastWin32Error (Status);
+}
+
+/* Get last NTSTATUS */
+NTSTATUS
+NTAPI
+GetLastStatus(
+	)
+{
+	return RtlGetLastWin32Error ();
+}
+
 /* Convert Win32 path to Native path */
 NTSTATUS
 NTAPI
@@ -143,6 +163,7 @@ WinPathToNtPath(
 	return RtlAppendUnicodeStringToString (NtPath, WinPath);
 }
 
+/* Allocate unicode string */
 NTSTATUS
 NTAPI
 AllocateUnicodeString(
@@ -159,6 +180,7 @@ AllocateUnicodeString(
 	return STATUS_SUCCESS;
 }
 
+/* Get current directory */
 VOID
 NTAPI
 GetCurrentDirectory(
@@ -168,6 +190,7 @@ GetCurrentDirectory(
 	Path->Length = RtlGetCurrentDirectory_U (Path->MaximumLength, Path->Buffer);
 }
 
+/* Set current directory */
 VOID
 NTAPI
 SetCurrentDirectory(

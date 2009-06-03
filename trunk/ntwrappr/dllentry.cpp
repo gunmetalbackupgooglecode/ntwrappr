@@ -1,4 +1,4 @@
-#include "../ntwrappr.h"
+#include "ntwrappr.h"
 
 BOOLEAN NTAPI DllEntry (PVOID Base, ULONG Reason, PVOID Unknown)
 {
