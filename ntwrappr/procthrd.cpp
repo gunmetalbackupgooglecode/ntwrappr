@@ -9,6 +9,8 @@
 #include "ntwrappr.h"
 
 
+/* Find first process.
+   pContext should pe passed later in ProcessNext calls. */
 BOOLEAN
 NTAPI
 ProcessFirst (
@@ -38,6 +40,9 @@ ProcessFirst (
 	return FALSE;
 }
 
+/* Find next process.
+   If there are no more processes, returns FALSE and frees context.
+   Otherwise returns TRUE */
 BOOLEAN
 NTAPI
 ProcessNext (
@@ -58,6 +63,7 @@ ProcessNext (
 	return FALSE;
 }
 
+/* Create native process */
 BOOLEAN
 NTAPI
 CreateProcess(
@@ -159,6 +165,7 @@ CreateProcess(
 	return Succeeded;
 }
 
+/* Create native thread */
 BOOLEAN
 NTAPI
 CreateThread(

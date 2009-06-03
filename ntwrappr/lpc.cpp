@@ -8,7 +8,7 @@
 
 #include "ntwrappr.h"
 
-
+/* Create LPC port */
 HANDLE
 NTAPI
 CreatePort(
@@ -45,6 +45,7 @@ CreatePort(
 	return NT_SUCCESS(Status) ? hPort : NULL;
 }
 
+/* Wait for LPC request */
 BOOLEAN
 NTAPI
 WaitReceivePort(
@@ -64,6 +65,7 @@ WaitReceivePort(
 	return NT_SUCCESS(Status);
 }
 
+/* Send LPC reply */
 BOOLEAN
 NTAPI
 ReplyPort(
@@ -78,6 +80,7 @@ ReplyPort(
 	return NT_SUCCESS(Status);
 }
 
+/* Accept incoming connection */
 BOOLEAN
 NTAPI
 AcceptPort(

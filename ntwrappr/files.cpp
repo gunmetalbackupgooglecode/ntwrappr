@@ -9,10 +9,7 @@
 #include "ntwrappr.h"
 
 
-//
-// Open any file
-//
-
+/* Open a file */
 HANDLE
 NTAPI
 OpenFile (
@@ -48,6 +45,7 @@ OpenFile (
 
 }
 
+/* Create new or open existing file */
 HANDLE
 NTAPI
 CreateFile (
@@ -88,10 +86,7 @@ CreateFile (
 	return NULL;
 }
 
-//
-// Read the file
-//
-
+/* Read the file */
 ULONG 
 NTAPI
 ReadFile (
@@ -162,6 +157,7 @@ ReadFile (
 	return -2;
 }
 
+/* Write the file */
 ULONG 
 NTAPI
 WriteFile (
@@ -223,10 +219,7 @@ WriteFile (
 	return -1;
 }
 
-//
-// Query directory file
-//
-
+/* Query directory contents */
 BOOLEAN
 NTAPI
 QueryDirectory (

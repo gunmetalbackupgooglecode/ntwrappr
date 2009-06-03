@@ -9,6 +9,7 @@
 #include "ntwrappr.h"
 
 
+/* Load DLL */
 PVOID
 NTAPI
 LoadDll(
@@ -33,6 +34,7 @@ LoadDll(
     return ModuleHandle;
 }
 
+/* Find loaded DLL handle */
 PVOID
 NTAPI
 FindDll(
@@ -56,6 +58,7 @@ FindDll(
     return ModuleHandle;
 }
 
+/* Get procedure address */
 PVOID
 NTAPI
 GetProcedureAddress(

@@ -1,6 +1,6 @@
 #define SET_ENTRY
 #define _CRTIMP
-#include "../ntwrappr.h"
+#include "ntwrappr.h"
 #include <fcntl.h>
 #include <io.h>
 
