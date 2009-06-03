@@ -21,12 +21,12 @@ SolidCompression=yes
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "D:\Progs\ntsystem\bin\native.exe"; DestDir: "{win}\System32"; Flags: ignoreversion
-Source: "D:\Progs\ntsystem\bin\ntwrappr.dll"; DestDir: "{win}\System32"; Flags: ignoreversion
-Source: "D:\Progs\ntsystem\bin\ntshell.exe"; DestDir: "{win}\System32"; Flags: ignoreversion
-Source: "D:\Progs\ntsystem\bin\psxtest.exe"; DestDir: "{win}\System32"; Flags: ignoreversion
-Source: "D:\Progs\ntsystem\bin\psxss.dll"; DestDir: "{win}\System32"; Flags: ignoreversion
-Source: "D:\Progs\ntsystem\bin\ntconss.exe"; DestDir: "{win}\System32"; Flags: ignoreversion
+Source: "ntwrappr.dll"; DestDir: "{win}\System32"; Flags: ignoreversion
+Source: "psxss.dll";    DestDir: "{win}\System32"; Flags: ignoreversion
+Source: "ntshell.exe";  DestDir: "{win}\System32"; Flags: ignoreversion
+Source: "psxtest.exe";  DestDir: "{win}\System32"; Flags: ignoreversion
+Source: "ntconss.exe";  DestDir: "{win}\System32"; Flags: ignoreversion
+Source: "cat.exe";      DestDir: "{win}\System32"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Registry]
