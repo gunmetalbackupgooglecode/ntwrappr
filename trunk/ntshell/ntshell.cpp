@@ -767,7 +767,7 @@ NativeEntry(
 	IN PUNICODE_STRING CommandLine
 	)
 {
-	Print("NT Shell 0.1\n");
+	Print("Native Shell " NTWRAPPER_VERSION_A "\n");
 	Print("Press ESC to continue loading Windows.\n");
 
     hSuccessfulLogonEvent = OpenEvent (EVENT_ALL_ACCESS, L"\\SuccessfulLogon");

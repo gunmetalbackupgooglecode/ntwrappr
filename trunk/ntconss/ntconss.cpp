@@ -582,7 +582,7 @@ NativeEntry(
 	IN PUNICODE_STRING CommandLine
 	)
 {
-    Print("NTCOSS: NT Console Subsystem initialization\n");
+    Print("NTCOSS: Native Console Subsystem " NTWRAPPER_VERSION_A " initialization\n");
 
     hReturnToWindowsEvent = CreateEvent (EVENT_ALL_ACCESS, L"\\ReturnToWindows", SynchronizationEvent, FALSE);
 

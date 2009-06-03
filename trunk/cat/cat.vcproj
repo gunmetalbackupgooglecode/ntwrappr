@@ -253,6 +253,10 @@
 				</FileConfiguration>
 			</File>
 		</Filter>
+		<File
+			RelativePath=".\cat.res"
+			>
+		</File>
 	</Files>
 	<Globals>
 	</Globals>

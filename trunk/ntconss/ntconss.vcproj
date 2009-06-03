@@ -185,6 +185,10 @@
 				>
 			</File>
 		</Filter>
+		<File
+			RelativePath=".\ntconss.res"
+			>
+		</File>
 	</Files>
 	<Globals>
 	</Globals>
